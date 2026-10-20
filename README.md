@@ -128,13 +128,26 @@ Deliver a reviewed chaptered M4B to my EXPORT_DIR.
 The agent asks for scope or editorial decisions when the source is ambiguous. You review the
 performance and listen to the final delivery. These are deliberate production checkpoints.
 
-To inspect the deterministic helpers without downloading or running a speech model:
+The plugin has one Python package, one root `pyproject.toml` and `uv.lock`, and one shared
+Typer CLI. To inspect source structure and commands without loading a speech model:
 
 ```sh
-uv run --locked python skills/preprocess-text/scripts/inspect_epub.py /absolute/path/book.epub
-uv run --locked python skills/adapt-text/scripts/adapt_text.py --help
-uv run --locked python skills/chatterbox/scripts/render.py --help
+uv run --locked audiobooks preprocess inspect /absolute/path/book.epub
+uv run --locked audiobooks adapt --help
+uv run --locked audiobooks render --help
 ```
+
+| Command group | Operations |
+| --- | --- |
+| `audiobooks preprocess` | `inspect`, `select-sections`, `upgrade`, `audit-corpus` |
+| `audiobooks adapt` | Briefs, score packets, validation, acceptance, revision, script export |
+| `audiobooks render` | `plan`, `generate`, `status`, schemas, verified revision imports |
+| `audiobooks delivery` | `assemble`, `encode`, `export` |
+
+Use `--help` on any group or command for its arguments. `uv run --locked audiobooks completion bash`
+prints Bash completion; `zsh` and `fish` are also supported. Completion generation accepts the shell
+explicitly and works from agent runtimes and CI. Add the plugin's `.venv/bin` to your shell's `PATH`
+before loading the generated script so its `audiobooks` callback resolves to this environment.
 
 The optional [director](.codex/agents/text-director.toml) and
 [adapter](.codex/agents/text-adapter.toml) role definitions are project-local Codex configuration.
@@ -345,9 +358,10 @@ uv run ruff check .
 uv run black --check .
 ```
 
-The command entry points under `skills/*/scripts/` expose schemas, status, validation, acceptance,
-planning, rendering, assembly, encoding, and export. They are intentionally narrower than a single
-one-shot CLI: the review boundaries are part of the product, not friction to automate away.
+All Python implementation lives in `src/audiobooks/`. The root `[project.scripts]` entry point
+exposes `audiobooks`; skills call its subcommands through the same locked uv environment.
+Use `uv run --project /absolute/path/to/plugin --locked audiobooks …` from another directory.
+Each production stage retains its explicit review and acceptance boundary.
 
 The current proving work is Thomas Taylor's Plotinus essay, *Concerning the Beautiful*. It exercises
 source admission, rhetorical direction, paragraph-preserving adaptation, original Chatterbox

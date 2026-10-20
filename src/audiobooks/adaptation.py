@@ -1641,7 +1641,3 @@ def export(workspace: Path):
         },
     )
     typer.echo(f"{len(files)} scripts; {count} speech blocks; {len(coverage)} source dispositions")
-
-
-if __name__ == "__main__":
-    app()

@@ -7,8 +7,9 @@ content identity, source relationships, filesystem state, and native audio behav
 when their result is not guaranteed by types.
 
 Audit scope: every test function in this directory, the code it exercises, all source modules,
-and bundled CLI scripts. The original suite had 43 test functions. The revised suite retains
-40 functions (42 pytest cases, plus subtests).
+and bundled CLI commands. The original suite had 43 test functions. The initial audit at
+`31f1794` retained 40 functions. The shared CLI adds three functions with six cases, bringing
+the current suite to 43 functions (48 pytest cases, plus subtests).
 
 The one-off mutation audit ran the suite against 38 domain faults in isolated source copies.
 An unmodified isolated control passed. Every mutant was detected, and every retained test
@@ -21,6 +22,18 @@ harness is an audit tool, not another permanent test framework or CI dependency.
 
 Each witness below was observed to fail the named test. All witnesses concern runtime content,
 relationships, or external effects that the type system cannot establish.
+
+### test_cli.py
+
+The shared CLI's three additional fault variants were run in isolated source copies. Each was
+detected by its corresponding test below. The subprocess tests invoke the installed entry point
+from outside the repository, with Python as the parent process.
+
+| Test | Application failure / required distinction | Detected fault |
+| --- | --- | --- |
+| `test_completion_binds_installed_command_and_resolves_nested_subcommands` | Bash, Zsh, and Fish scripts must bind the installed executable and its actual callback variable; callbacks must filter nested subcommands from a Python parent. | `broken-completion-binding`: change the generated script's callback variable. |
+| `test_unsupported_completion_shell_fails_without_emitting_a_script` | An unsupported shell must produce an actionable error and nonzero process status, rather than a successful empty completion installation. | `unsupported-shell-success`: exit zero for an unsupported shell. |
+| `test_preprocess_cli_preserves_reports_and_propagates_blocked_admission` | Installed command routing must preserve EPUB targets, propagate blocked admission as exit two, write its evidence, and refuse to overwrite an existing report. | `blocked-admission-success`: exit zero for blocked section selection. |
 
 ### test_acting_score.py
 

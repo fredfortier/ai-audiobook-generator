@@ -183,7 +183,7 @@ def run_diagnostics(path: Path, temporary: Path, run: bool) -> dict:
     }
 
 
-def main(
+def audit_corpus(
     output: Path,
     corpus: Path | None = typer.Option(None, envvar="TEXTS_CORPUS"),
     seed: int = 20260919,
@@ -307,7 +307,3 @@ def main(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     typer.echo(json.dumps(aggregates, sort_keys=True))
-
-
-if __name__ == "__main__":
-    typer.run(main)

@@ -520,9 +520,8 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
     prior_workspace = work_path(prior_workspace)
     plan = load_plan(workspace)
     prior_plan = json.loads((prior_workspace / "plan.json").read_text())
-    verifier_script = verifier_checkout / "skills" / "chatterbox" / "scripts" / "render.py"
     verifier_source = verifier_checkout / "src" / "audiobooks" / "rendering.py"
-    if not verifier_script.is_file() or not verifier_source.is_file():
+    if not (verifier_checkout / "pyproject.toml").is_file() or not verifier_source.is_file():
         raise ValueError("isolated verifier checkout lacks the recorded rendering implementation")
     status_result = subprocess.run(
         [
@@ -531,8 +530,8 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
             "--project",
             str(verifier_checkout),
             "--locked",
-            "python",
-            str(verifier_script),
+            "audiobooks",
+            "render",
             "status",
             str(prior_workspace.resolve()),
         ],
@@ -624,7 +623,7 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
     )
 
 
-@app.command()
+@app.command("generate")
 def render(workspace: Path, segment_ids: str = ""):
     """Generate a selected audition or all segments; reuse only verified saved audio."""
     workspace = work_path(workspace)

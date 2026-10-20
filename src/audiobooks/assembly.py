@@ -112,7 +112,7 @@ def escape_metadata(text):
 
 def assemble(
     workspace: Path, output: Path, gaps: Path, chapter_titles: Path, container: str = "WAV"
-):
+) -> None:
     """Assemble every verified request; write FLOAT PCM and FFmetadata chapters."""
     import numpy as np
     import soundfile as sf
@@ -251,7 +251,3 @@ def assemble(
     typer.echo(
         f"{len(positions)} ordered segments; {frames / rate:.2f}s lossless assembly; quality unreviewed"
     )
-
-
-if __name__ == "__main__":
-    typer.run(assemble)
