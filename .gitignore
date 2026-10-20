@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.third-party
+
+# Local credentials
+.env
+.env.*
+
+# Generated audio and synthesis telemetry
+books/
+
+# Local book work directories
+workspace/**
+!workspace/AGENTS.override.md

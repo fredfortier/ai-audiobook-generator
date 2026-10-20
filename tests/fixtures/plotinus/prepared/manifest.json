@@ -1,0 +1,45 @@
+{
+  "prepared_text_version": 1,
+  "admission": "ready",
+  "title": "An Essay on the Beautiful",
+  "author": "Plotinus",
+  "translator": "Thomas Taylor",
+  "language": "en",
+  "source_url": "https://www.gutenberg.org/files/29510/29510-h/29510-h.htm",
+  "retrieved_at": "2026-09-18T08:32:00.197917+00:00",
+  "scope": "Complete edition inventory; default audiobook scope is the main essay and its embedded verse.",
+  "section_ids": [
+    "platform-opening",
+    "title-page",
+    "translator-introduction",
+    "essay",
+    "notes",
+    "transcriber",
+    "platform-ending"
+  ],
+  "hashes": {
+    "prepared.md": "660b3b21fbc72d6d5ff3033ef69388edca890031615957038ca4b3273efa8f56",
+    "units.jsonl": "30d8021d0a62ff69831dc303bca5d17906abc164de11d08afec2f727f2448b02"
+  },
+  "original_file_hashes": {
+    "original/29510-h.htm": "ad2c275c867c6e43bb9356bfbbc9cfd8f9f428d01917de1d43d6942f70e331fa"
+  },
+  "tool_versions": {
+    "pandoc": "3.9",
+    "panflute": "2.3.1",
+    "lxml": [
+      6,
+      1,
+      3,
+      0
+    ]
+  },
+  "checks": [
+    "Every source block and text-bearing direct-body tail indexed in reading order.",
+    "All converted units match retained HTML words and punctuation under layout whitespace projection.",
+    "Genuine paragraph-styled section headings and embedded verse identified.",
+    "All twelve linked note calls retained in source projection with exact spans; note prose retained as paratext.",
+    "No original print-page labels identified."
+  ],
+  "issues": []
+}
