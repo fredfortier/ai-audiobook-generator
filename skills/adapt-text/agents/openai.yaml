@@ -1,0 +1,3 @@
+interface:
+  display_name: "Adapt Text"
+  short_description: "Prepare faithful speech and paragraph-level performance"
