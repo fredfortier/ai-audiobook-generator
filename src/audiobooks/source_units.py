@@ -1,4 +1,5 @@
 """Verify prepared provenance and partition complete units without changing prose."""
+
 from __future__ import annotations
 
 import hashlib
@@ -13,13 +14,14 @@ from audiobooks.script_contract import Record, parse_document, project_text
 
 
 def sha256(path: Path) -> str:
-    with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def identity(value) -> str:
-    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
-                                     separators=(",", ":")).encode()).hexdigest()
+def identity(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 class Unit(Record):
@@ -38,7 +40,9 @@ class Unit(Record):
 
 
 class SectionEvidence(Record):
-    source_kind: Literal["epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"]
+    source_kind: Literal[
+        "epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"
+    ]
     source_location: str
     raw_value: str | None
     resolved_value: str | None
@@ -52,7 +56,9 @@ class Section(Record):
     parent_section_id: str | None
     level: int = Field(ge=1)
     role: Literal["body", "paratext", "unknown"]
-    navigation_source: Literal["epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"]
+    navigation_source: Literal[
+        "epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"
+    ]
     raw_title: str | None
     title_unit_id: str | None
     target_href: str | None
@@ -65,11 +71,14 @@ class Section(Record):
 
 class SectionProjection(Record):
     """Reviewed bridge from a source boundary to the prepared unit spine."""
+
     section_id: str
     parent_section_id: str | None
     level: int = Field(ge=1)
     role: Literal["body", "paratext", "unknown"]
-    navigation_source: Literal["epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"]
+    navigation_source: Literal[
+        "epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"
+    ]
     raw_title: str
     boundary_unit_id: str
     content_title_unit_id: str | None
@@ -105,7 +114,9 @@ def project_section_titles(
         if projection.boundary_unit_id not in unit_by_id:
             raise ValueError(f"unknown boundary unit: {projection.boundary_unit_id}")
         boundary_positions.append(position_by_unit_id[projection.boundary_unit_id])
-    if boundary_positions != sorted(boundary_positions) or len(set(boundary_positions)) != len(boundary_positions):
+    if boundary_positions != sorted(boundary_positions) or len(set(boundary_positions)) != len(
+        boundary_positions
+    ):
         raise ValueError("section boundaries must be unique and monotonic")
     if boundary_positions[0] != 0:
         raise ValueError("first included unit must belong to a selected section")
@@ -115,19 +126,26 @@ def project_section_titles(
     projected_sections: list[Section] = []
     for projection_index, projection in enumerate(projections):
         start = boundary_positions[projection_index]
-        stop = (boundary_positions[projection_index + 1]
-                if projection_index + 1 < len(projections) else len(units))
+        stop = (
+            boundary_positions[projection_index + 1]
+            if projection_index + 1 < len(projections)
+            else len(units)
+        )
         source_slice = units[start:stop]
         if projection.content_title_unit_id is not None:
             if projection.content_title_unit_id != projection.boundary_unit_id:
-                raise ValueError(f"content title must be the section start: {projection.section_id}")
+                raise ValueError(
+                    f"content title must be the section start: {projection.section_id}"
+                )
             title_unit = unit_by_id[projection.content_title_unit_id]
             if title_unit.kind != "heading":
                 raise ValueError(f"content title is not a heading: {projection.section_id}")
             projected_title = title_unit.model_copy(update={"section_id": projection.section_id})
             projected.append(projected_title)
-            projected.extend(unit.model_copy(update={"section_id": projection.section_id})
-                             for unit in source_slice[1:])
+            projected.extend(
+                unit.model_copy(update={"section_id": projection.section_id})
+                for unit in source_slice[1:]
+            )
             title_unit_id = projected_title.id
             start_unit_id = projected_title.id
             reason = "authored content heading retained without duplication"
@@ -135,30 +153,56 @@ def project_section_titles(
             title_unit_id = f"u{next_numeric_id:06d}"
             next_numeric_id += 1
             projected_title = Unit(
-                id=title_unit_id, ordinal=1, section_id=projection.section_id, kind="heading",
-                role=projection.role, source_locators=[projection.source_location],
-                source_text=projection.raw_title, prepared_text=projection.raw_title,
-                print_pages=[], note_call_spans=[],
+                id=title_unit_id,
+                ordinal=1,
+                section_id=projection.section_id,
+                kind="heading",
+                role=projection.role,
+                source_locators=[projection.source_location],
+                source_text=projection.raw_title,
+                prepared_text=projection.raw_title,
+                print_pages=[],
+                note_call_spans=[],
                 preparation_changes=["navigation-label projection"],
-                heading_level=min(projection.level, 6))
+                heading_level=min(projection.level, 6),
+            )
             projected.append(projected_title)
-            projected.extend(unit.model_copy(update={"section_id": projection.section_id})
-                             for unit in source_slice)
+            projected.extend(
+                unit.model_copy(update={"section_id": projection.section_id})
+                for unit in source_slice
+            )
             start_unit_id = title_unit_id
             reason = "navigation label projected because no equivalent content heading exists"
-        projected_sections.append(Section(
-            section_id=projection.section_id, ordinal=projection_index + 1,
-            parent_section_id=projection.parent_section_id, level=projection.level,
-            role=projection.role, navigation_source=projection.navigation_source,
-            raw_title=projection.raw_title, title_unit_id=title_unit_id,
-            target_href=projection.target_href, target_fragment=projection.target_fragment,
-            start_unit_id=start_unit_id, delivery_chapter=projection.delivery_chapter,
-            evidence=[SectionEvidence(
-                source_kind=projection.navigation_source,
-                source_location=projection.source_location,
-                raw_value=projection.raw_title, resolved_value=title_unit_id,
-                decision="selected", reason=reason)], issues=projection.issues))
-    projected = [unit.model_copy(update={"ordinal": index}) for index, unit in enumerate(projected, 1)]
+        projected_sections.append(
+            Section(
+                section_id=projection.section_id,
+                ordinal=projection_index + 1,
+                parent_section_id=projection.parent_section_id,
+                level=projection.level,
+                role=projection.role,
+                navigation_source=projection.navigation_source,
+                raw_title=projection.raw_title,
+                title_unit_id=title_unit_id,
+                target_href=projection.target_href,
+                target_fragment=projection.target_fragment,
+                start_unit_id=start_unit_id,
+                delivery_chapter=projection.delivery_chapter,
+                evidence=[
+                    SectionEvidence(
+                        source_kind=projection.navigation_source,
+                        source_location=projection.source_location,
+                        raw_value=projection.raw_title,
+                        resolved_value=title_unit_id,
+                        decision="selected",
+                        reason=reason,
+                    )
+                ],
+                issues=projection.issues,
+            )
+        )
+    projected = [
+        unit.model_copy(update={"ordinal": index}) for index, unit in enumerate(projected, 1)
+    ]
     return projected, projected_sections
 
 
@@ -195,9 +239,13 @@ def sections(bundle: Path, manifest: dict, units: list[Unit]) -> list[Section]:
             title = by_id.get(section.title_unit_id)
             if title is None or title.section_id != section.section_id or title.kind != "heading":
                 raise ValueError(f"invalid delivery title unit: {section.section_id}")
-            if (_comparable_title(section.raw_title) != _comparable_title(title.prepared_text)
-                    and not section.issues):
-                raise ValueError(f"substantive navigation/content title difference needs an issue: {section.section_id}")
+            if (
+                _comparable_title(section.raw_title) != _comparable_title(title.prepared_text)
+                and not section.issues
+            ):
+                raise ValueError(
+                    f"substantive navigation/content title difference needs an issue: {section.section_id}"
+                )
     return result
 
 
@@ -223,7 +271,9 @@ def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list
             raise ValueError("witness path must be inside original/")
         if sha256(path) != digest:
             raise ValueError(f"changed witness: {name}")
-    units = [Unit.model_validate_json(line) for line in (bundle / "units.jsonl").read_text().splitlines()]
+    units = [
+        Unit.model_validate_json(line) for line in (bundle / "units.jsonl").read_text().splitlines()
+    ]
     if not units or [u.ordinal for u in units] != list(range(1, len(units) + 1)):
         raise ValueError("unit ordinals must be contiguous")
     if len({u.id for u in units}) != len(units):
@@ -250,8 +300,12 @@ def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list
         raise ValueError("Markdown/index unit count differs")
     for block, unit in zip(doc.content, units, strict=True):
         attrs = {"kind": unit.kind, "role": unit.role, "section": unit.section_id}
-        if (not isinstance(block, pf.Div) or block.identifier != unit.id
-                or list(block.classes) != ["source"] or dict(block.attributes) != attrs):
+        if (
+            not isinstance(block, pf.Div)
+            or block.identifier != unit.id
+            or list(block.classes) != ["source"]
+            or dict(block.attributes) != attrs
+        ):
             raise ValueError(f"Markdown/index identity differs: {unit.id}")
         body = list(block.content)
         expected = pf.Header if unit.kind == "heading" else pf.Para
@@ -276,22 +330,46 @@ def partition(units: list[Unit], *, max_batch_pages: int = 10, max_batch_words: 
     pages = []
     for unit in units:
         words = len(unit.prepared_text.split())
-        if (not pages or pages[-1]["section_id"] != unit.section_id
-                or pages[-1]["words"] + words > 600):
-            pages.append({"id": f"wp{len(pages)+1:06d}", "section_id": unit.section_id,
-                          "unit_ids": [], "words": 0})
+        if (
+            not pages
+            or pages[-1]["section_id"] != unit.section_id
+            or pages[-1]["words"] + words > 600
+        ):
+            pages.append(
+                {
+                    "id": f"wp{len(pages)+1:06d}",
+                    "section_id": unit.section_id,
+                    "unit_ids": [],
+                    "words": 0,
+                }
+            )
         pages[-1]["unit_ids"].append(unit.id)
         pages[-1]["words"] += words
     batches = []
     for page in pages:
-        if (not batches or batches[-1]["section_id"] != page["section_id"]
-                or len(batches[-1]["page_ids"]) >= max_batch_pages
-                or batches[-1]["words"] + page["words"] > max_batch_words):
-            batches.append({"id": f"b{len(batches)+1:06d}", "section_id": page["section_id"],
-                            "page_ids": [], "unit_ids": [], "words": 0})
+        if (
+            not batches
+            or batches[-1]["section_id"] != page["section_id"]
+            or len(batches[-1]["page_ids"]) >= max_batch_pages
+            or batches[-1]["words"] + page["words"] > max_batch_words
+        ):
+            batches.append(
+                {
+                    "id": f"b{len(batches)+1:06d}",
+                    "section_id": page["section_id"],
+                    "page_ids": [],
+                    "unit_ids": [],
+                    "words": 0,
+                }
+            )
         batch = batches[-1]
         batch["page_ids"].append(page["id"])
         batch["unit_ids"].extend(page["unit_ids"])
         batch["words"] += page["words"]
-    return {"plan_version": 2, "max_batch_pages": max_batch_pages,
-            "max_batch_words": max_batch_words, "pages": pages, "batches": batches}
+    return {
+        "plan_version": 2,
+        "max_batch_pages": max_batch_pages,
+        "max_batch_words": max_batch_words,
+        "pages": pages,
+        "batches": batches,
+    }

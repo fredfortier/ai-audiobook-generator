@@ -5,12 +5,13 @@ deliberately narrow: semantic sectioning, or a sectioning element with an
 authored accessible heading.  Generic headings and filename patterns are kept
 as evidence but are never promoted by themselves.
 """
+
 from __future__ import annotations
 
-from collections import Counter
-from pathlib import Path
 import re
 import unicodedata
+from collections import Counter
+from pathlib import Path
 from typing import Literal
 
 from ebooklib import epub
@@ -19,7 +20,6 @@ from pydantic import Field
 
 from audiobooks.epub_structure import EpubInventory, NavigationNode, NavigationSource
 from audiobooks.script_contract import Record
-
 
 SourceKind = Literal["epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"]
 
@@ -104,12 +104,14 @@ def _navigation_nodes(inventory: EpubInventory, source: NavigationSource) -> lis
 
 
 def _target_nodes(inventory: EpubInventory, source: NavigationSource) -> list[NavigationNode]:
-    return [node for node in _navigation_nodes(inventory, source)
-            if node.raw_target is not None and node.linear is True]
+    return [
+        node
+        for node in _navigation_nodes(inventory, source)
+        if node.raw_target is not None and node.linear is True
+    ]
 
 
-def _navigation_title_path(node: NavigationNode,
-                           all_nodes: list[NavigationNode]) -> list[str]:
+def _navigation_title_path(node: NavigationNode, all_nodes: list[NavigationNode]) -> list[str]:
     by_id = {item.id: item for item in all_nodes}
     values: list[str] = []
     current: NavigationNode | None = node
@@ -127,8 +129,10 @@ def _target_key(node: NavigationNode) -> tuple[str | None, str | None]:
 
 
 def _benign_extras(nodes: list[NavigationNode]) -> bool:
-    return all(node.linear is False or comparable_label(node.raw_label) in _paratext_labels
-               for node in nodes)
+    return all(
+        node.linear is False or comparable_label(node.raw_label) in _paratext_labels
+        for node in nodes
+    )
 
 
 def _compare_sources(primary: list[NavigationNode], secondary: list[NavigationNode]) -> list[str]:
@@ -185,8 +189,11 @@ def _resolve_navigation_positions(
     nodes: list[NavigationNode],
 ) -> tuple[list[str], dict[str, int]]:
     issues: list[str] = []
-    missing = Counter(node.resource_href for node in nodes
-                      if node.resource_exists and node.fragment is not None and node.fragment_exists is False)
+    missing = Counter(
+        node.resource_href
+        for node in nodes
+        if node.resource_exists and node.fragment is not None and node.fragment_exists is False
+    )
     fallback_positions: dict[str, int] = {}
     for node in nodes:
         if not node.resource_exists:
@@ -195,18 +202,22 @@ def _resolve_navigation_positions(
             if missing[node.resource_href] == 1:
                 fallback_positions[node.id] = 0
             else:
-                issues.append(f"multiple unresolved fragments would collapse in {node.resource_href}")
+                issues.append(
+                    f"multiple unresolved fragments would collapse in {node.resource_href}"
+                )
         elif node.dom_ordinal is None:
             issues.append(f"navigation target has no DOM position: {node.raw_target}")
     return list(dict.fromkeys(issues)), fallback_positions
 
 
-def _coalesce_stacked_boundaries(nodes: list[NavigationNode], fallback_positions: dict[str, int]) -> tuple[
-    list[NavigationNode], dict[str, list[NavigationNode]], list[str]
-]:
+def _coalesce_stacked_boundaries(
+    nodes: list[NavigationNode], fallback_positions: dict[str, int]
+) -> tuple[list[NavigationNode], dict[str, list[NavigationNode]], list[str]]:
     groups: dict[tuple[int | None, int | None], list[NavigationNode]] = {}
     for node in nodes:
-        groups.setdefault((node.spine_ordinal, fallback_positions.get(node.id, node.dom_ordinal)), []).append(node)
+        groups.setdefault(
+            (node.spine_ordinal, fallback_positions.get(node.id, node.dom_ordinal)), []
+        ).append(node)
     selected: list[NavigationNode] = []
     stacks: dict[str, list[NavigationNode]] = {}
     issues: list[str] = []
@@ -227,8 +238,12 @@ def _coalesce_stacked_boundaries(nodes: list[NavigationNode], fallback_positions
             continue
         selected.append(deepest)
         stacks[deepest.id] = group
-    selected.sort(key=lambda node: (node.spine_ordinal or 0,
-                                    fallback_positions.get(node.id, node.dom_ordinal or 0)))
+    selected.sort(
+        key=lambda node: (
+            node.spine_ordinal or 0,
+            fallback_positions.get(node.id, node.dom_ordinal or 0),
+        )
+    )
     return selected, stacks, issues
 
 
@@ -250,19 +265,33 @@ def structural_candidates(path: Path, inventory: EpubInventory) -> list[Structur
         item = by_href.get(spine_item.href)
         if item is None:
             continue
-        root = etree.fromstring(item.get_content(), parser=etree.XMLParser(
-            recover=True, resolve_entities=False, no_network=True))
+        root = etree.fromstring(
+            item.get_content(),
+            parser=etree.XMLParser(recover=True, resolve_entities=False, no_network=True),
+        )
         elements = [node for node in root.iter() if isinstance(node.tag, str)]
         for dom_ordinal, node in enumerate(elements):
             tag = _local_name(node.tag).lower()
-            type_value = " ".join(value for key, value in node.attrib.items()
-                                  if _local_name(key) == "type")
-            roles = {part.casefold().removeprefix("doc-")
-                     for part in (type_value + " " + (node.get("role") or "")).split()}
+            type_value = " ".join(
+                value for key, value in node.attrib.items() if _local_name(key) == "type"
+            )
+            roles = {
+                part.casefold().removeprefix("doc-")
+                for part in (type_value + " " + (node.get("role") or "")).split()
+            }
             semantic = next((role for role in _section_roles if role in roles), None)
-            heading = node if tag in {f"h{n}" for n in range(1, 7)} else next(
-                (child for child in node.iterdescendants()
-                 if _local_name(child.tag).lower() in {f"h{n}" for n in range(1, 7)}), None)
+            heading = (
+                node
+                if tag in {f"h{n}" for n in range(1, 7)}
+                else next(
+                    (
+                        child
+                        for child in node.iterdescendants()
+                        if _local_name(child.tag).lower() in {f"h{n}" for n in range(1, 7)}
+                    ),
+                    None,
+                )
+            )
             title = _element_text(heading) or (node.get("aria-label") or node.get("title"))
             title = title.strip() if title else None
             signals: list[str] = []
@@ -277,58 +306,113 @@ def structural_candidates(path: Path, inventory: EpubInventory) -> list[Structur
                 signals.append("stable-id-or-class")
             if tag in {f"h{n}" for n in range(1, 7)} and not semantic:
                 signals.append("generic-heading")
-            page_type = "pagebreak" in roles or (node.get("role") or "").casefold() == "doc-pagebreak"
+            page_type = (
+                "pagebreak" in roles or (node.get("role") or "").casefold() == "doc-pagebreak"
+            )
             relevant = bool(signals) or page_type
             if not relevant:
                 continue
-            selected = bool(title and not page_type and
-                            (semantic or ("sectioning-element" in signals and "authored-heading" in signals)))
-            reason = None if selected else (
-                "page-break markers are not section boundaries" if page_type else
-                "candidate lacks semantic or corroborated sectioning evidence")
-            candidates.append(StructuralCandidate(
-                id=f"candidate-{len(candidates)+1:06d}", resource_href=spine_item.href,
-                spine_ordinal=spine_item.ordinal, dom_ordinal=dom_ordinal,
-                source_location=f"{spine_item.href}{root.getroottree().getpath(node)}",
-                fragment=node.get("id"), level=int(_local_name(heading.tag)[1]) if heading is not None else 1,
-                title=title, title_location=(f"{spine_item.href}{root.getroottree().getpath(heading)}"
-                                             if heading is not None else None),
-                semantic_role=semantic, signals=signals, selected=selected,
-                rejection_reason=reason))
+            selected = bool(
+                title
+                and not page_type
+                and (
+                    semantic or ("sectioning-element" in signals and "authored-heading" in signals)
+                )
+            )
+            reason = (
+                None
+                if selected
+                else (
+                    "page-break markers are not section boundaries"
+                    if page_type
+                    else "candidate lacks semantic or corroborated sectioning evidence"
+                )
+            )
+            candidates.append(
+                StructuralCandidate(
+                    id=f"candidate-{len(candidates)+1:06d}",
+                    resource_href=spine_item.href,
+                    spine_ordinal=spine_item.ordinal,
+                    dom_ordinal=dom_ordinal,
+                    source_location=f"{spine_item.href}{root.getroottree().getpath(node)}",
+                    fragment=node.get("id"),
+                    level=int(_local_name(heading.tag)[1]) if heading is not None else 1,
+                    title=title,
+                    title_location=(
+                        f"{spine_item.href}{root.getroottree().getpath(heading)}"
+                        if heading is not None
+                        else None
+                    ),
+                    semantic_role=semantic,
+                    signals=signals,
+                    selected=selected,
+                    rejection_reason=reason,
+                )
+            )
     return candidates
 
 
-def _boundary_from_node(node: NavigationNode, all_nodes: list[NavigationNode], ordinal: int,
-                        fallback_positions: dict[str, int]) -> SectionBoundary:
+def _boundary_from_node(
+    node: NavigationNode,
+    all_nodes: list[NavigationNode],
+    ordinal: int,
+    fallback_positions: dict[str, int],
+) -> SectionBoundary:
     label = node.raw_label.strip()
     content = node.content_label.strip() if node.content_label else None
     if content:
         title, origin = content, "content-heading"
     else:
         title, origin = label, "navigation-label-projection"
-    evidence = [SelectionEvidence(
-        source_kind=node.source, source_location=node.source_location,
-        raw_value=node.raw_target, resolved_value=node.resolved_location,
-        decision="selected", reason="primary standard navigation boundary")]
+    evidence = [
+        SelectionEvidence(
+            source_kind=node.source,
+            source_location=node.source_location,
+            raw_value=node.raw_target,
+            resolved_value=node.resolved_location,
+            decision="selected",
+            reason="primary standard navigation boundary",
+        )
+    ]
     if node.id in fallback_positions:
-        evidence.append(SelectionEvidence(
-            source_kind=node.source, source_location=node.source_location,
-            raw_value=node.fragment, resolved_value=node.resource_href,
-            decision="degraded-to-resource-start",
-            reason="only unresolved boundary in the resource"))
+        evidence.append(
+            SelectionEvidence(
+                source_kind=node.source,
+                source_location=node.source_location,
+                raw_value=node.fragment,
+                resolved_value=node.resource_href,
+                decision="degraded-to-resource-start",
+                reason="only unresolved boundary in the resource",
+            )
+        )
     return SectionBoundary(
-        section_id=f"sec-{ordinal:04d}", ordinal=ordinal, parent_section_id=None,
+        section_id=f"sec-{ordinal:04d}",
+        ordinal=ordinal,
+        parent_section_id=None,
         source=node.source,
-        source_node_id=node.id, resource_href=node.resource_href or "",
-        fragment=node.fragment, spine_ordinal=node.spine_ordinal or 0,
-        dom_ordinal=fallback_positions.get(node.id, node.dom_ordinal or 0), level=node.level,
-        raw_title=label, title=title, title_origin=origin,
+        source_node_id=node.id,
+        resource_href=node.resource_href or "",
+        fragment=node.fragment,
+        spine_ordinal=node.spine_ordinal or 0,
+        dom_ordinal=fallback_positions.get(node.id, node.dom_ordinal or 0),
+        level=node.level,
+        raw_title=label,
+        title=title,
+        title_origin=origin,
         title_path=_navigation_title_path(node, all_nodes),
-        content_label=content, delivery_chapter=True, evidence=evidence, issues=[])
+        content_label=content,
+        delivery_chapter=True,
+        evidence=evidence,
+        issues=[],
+    )
 
 
-def select_sections(inventory: EpubInventory, *, epub_path: Path | None = None,
-                    calibre_candidates: list[CalibreCandidate] | None = None) -> SectionSelection:
+def select_sections(
+    inventory: EpubInventory,
+    *,
+    epub_path: Path | None = None,
+    calibre_candidates: list[CalibreCandidate] | None = None,
+) -> SectionSelection:
     """Select monotonic, evidenced boundaries or return an actionable blocked plan."""
     primary_name, primary, secondary = _select_primary_navigation(inventory)
     issues: list[str] = []
@@ -341,10 +425,23 @@ def select_sections(inventory: EpubInventory, *, epub_path: Path | None = None,
         issues.extend(_compare_sources(primary, secondary))
         resolution_issues, fallback_positions = _resolve_navigation_positions(primary)
         issues.extend(resolution_issues)
-        usable = [node for node in primary if node.resource_exists and
-                  (node.fragment is None or node.fragment_exists is True or node.id in fallback_positions)]
-        raw_ordered = sorted(usable, key=lambda node: (node.spine_ordinal or 0,
-                                                       fallback_positions.get(node.id, node.dom_ordinal or 0)))
+        usable = [
+            node
+            for node in primary
+            if node.resource_exists
+            and (
+                node.fragment is None
+                or node.fragment_exists is True
+                or node.id in fallback_positions
+            )
+        ]
+        raw_ordered = sorted(
+            usable,
+            key=lambda node: (
+                node.spine_ordinal or 0,
+                fallback_positions.get(node.id, node.dom_ordinal or 0),
+            ),
+        )
         if [node.id for node in usable] != [node.id for node in raw_ordered]:
             issues.append("selected navigation boundaries are not monotonic in reading order")
         ordered, stacks, stack_issues = _coalesce_stacked_boundaries(
@@ -354,13 +451,21 @@ def select_sections(inventory: EpubInventory, *, epub_path: Path | None = None,
         for node in ordered:
             if not node.raw_label.strip():
                 issues.append(f"selected boundary has no authored label: {node.source_location}")
-            if node.content_label and comparable_label(node.content_label) != comparable_label(node.raw_label):
-                issues.append(f"navigation/content title materially differs: {node.source_location}")
-        boundaries = [_boundary_from_node(node, _navigation_nodes(inventory, primary_name), index,
-                                          fallback_positions)
-                      for index, node in enumerate(ordered, 1)]
-        section_by_node = {node.id: boundary.section_id
-                           for node, boundary in zip(ordered, boundaries, strict=True)}
+            if node.content_label and comparable_label(node.content_label) != comparable_label(
+                node.raw_label
+            ):
+                issues.append(
+                    f"navigation/content title materially differs: {node.source_location}"
+                )
+        boundaries = [
+            _boundary_from_node(
+                node, _navigation_nodes(inventory, primary_name), index, fallback_positions
+            )
+            for index, node in enumerate(ordered, 1)
+        ]
+        section_by_node = {
+            node.id: boundary.section_id for node, boundary in zip(ordered, boundaries, strict=True)
+        }
         all_by_id = {node.id: node for node in _navigation_nodes(inventory, primary_name)}
         for boundary, node in zip(boundaries, ordered, strict=True):
             parent_id = node.parent_id
@@ -369,67 +474,129 @@ def select_sections(inventory: EpubInventory, *, epub_path: Path | None = None,
             boundary.parent_section_id = section_by_node.get(parent_id)
             for stacked in stacks.get(node.id, []):
                 if stacked.id != node.id:
-                    boundary.evidence.append(SelectionEvidence(
-                        source_kind=stacked.source, source_location=stacked.source_location,
-                        raw_value=stacked.raw_target, resolved_value=stacked.resolved_location,
-                        decision="stacked-hierarchy", reason="authored ancestor shares one audio start"))
-        return SectionSelection(primary_source=primary_name, status="blocked" if issues else "ready",
-                                boundaries=boundaries, issues=list(dict.fromkeys(issues)))
+                    boundary.evidence.append(
+                        SelectionEvidence(
+                            source_kind=stacked.source,
+                            source_location=stacked.source_location,
+                            raw_value=stacked.raw_target,
+                            resolved_value=stacked.resolved_location,
+                            decision="stacked-hierarchy",
+                            reason="authored ancestor shares one audio start",
+                        )
+                    )
+        return SectionSelection(
+            primary_source=primary_name,
+            status="blocked" if issues else "ready",
+            boundaries=boundaries,
+            issues=list(dict.fromkeys(issues)),
+        )
 
     if epub_path is None:
-        return SectionSelection(primary_source=None, status="blocked", boundaries=[],
-                                issues=["standard navigation is absent or unresolvable; structural evidence required"])
-    candidates = candidate_cache if candidate_cache is not None else structural_candidates(epub_path, inventory)
+        return SectionSelection(
+            primary_source=None,
+            status="blocked",
+            boundaries=[],
+            issues=["standard navigation is absent or unresolvable; structural evidence required"],
+        )
+    candidates = (
+        candidate_cache
+        if candidate_cache is not None
+        else structural_candidates(epub_path, inventory)
+    )
     calibre_by_candidate: dict[str, CalibreCandidate] = {}
     for external in calibre_candidates or []:
-        matches = [candidate for candidate in candidates
-                   if candidate.resource_href == external.resource_href
-                   and ((external.fragment is not None and candidate.fragment == external.fragment)
-                        or (external.fragment is None
-                            and comparable_label(candidate.title) == comparable_label(external.title)))]
+        matches = [
+            candidate
+            for candidate in candidates
+            if candidate.resource_href == external.resource_href
+            and (
+                (external.fragment is not None and candidate.fragment == external.fragment)
+                or (
+                    external.fragment is None
+                    and comparable_label(candidate.title) == comparable_label(external.title)
+                )
+            )
+        ]
         if len(matches) == 1 and matches[0].title and matches[0].signals:
             candidate = matches[0]
             if not candidate.selected:
                 position = candidates.index(candidate)
-                candidate = candidate.model_copy(update={
-                    "selected": True, "rejection_reason": None,
-                    "signals": candidate.signals + ["calibre-corroboration"]})
+                candidate = candidate.model_copy(
+                    update={
+                        "selected": True,
+                        "rejection_reason": None,
+                        "signals": candidate.signals + ["calibre-corroboration"],
+                    }
+                )
                 candidates[position] = candidate
             calibre_by_candidate[candidate.id] = external
     selected = [candidate for candidate in candidates if candidate.selected]
     if not selected:
-        return SectionSelection(primary_source=None, status="blocked", boundaries=[],
-                                issues=["no corroborated structural section candidates"])
+        return SectionSelection(
+            primary_source=None,
+            status="blocked",
+            boundaries=[],
+            issues=["no corroborated structural section candidates"],
+        )
     selected.sort(key=lambda candidate: (candidate.spine_ordinal, candidate.dom_ordinal))
     positions = [(candidate.spine_ordinal, candidate.dom_ordinal) for candidate in selected]
     if len(set(positions)) != len(positions):
         issues.append("structural candidates collide at one DOM position")
-    boundaries = [SectionBoundary(
-        section_id=f"sec-{index:04d}", ordinal=index, parent_section_id=None,
-        source="content-structure",
-        source_node_id=candidate.id, resource_href=candidate.resource_href,
-        fragment=candidate.fragment, spine_ordinal=candidate.spine_ordinal,
-        dom_ordinal=candidate.dom_ordinal, level=candidate.level,
-        raw_title=candidate.title or "", title=candidate.title or "",
-        title_origin="content-heading" if candidate.title_location else "accessible-name",
-        title_path=[candidate.title or ""], content_label=candidate.title,
-        delivery_chapter=True,
-        evidence=[SelectionEvidence(
-            source_kind="content-structure", source_location=candidate.source_location,
-            raw_value=candidate.title, resolved_value=candidate.title_location,
-            decision="selected", reason=" + ".join(candidate.signals))] +
-        ([SelectionEvidence(source_kind="calibre-candidate",
-                            source_location=calibre_by_candidate[candidate.id].source_location,
-                            raw_value=calibre_by_candidate[candidate.id].title,
-                            resolved_value=candidate.source_location,
-                            decision="corroborated", reason="matched independent content structure")]
-         if candidate.id in calibre_by_candidate else []), issues=[])
-                  for index, candidate in enumerate(selected, 1)]
+    boundaries = [
+        SectionBoundary(
+            section_id=f"sec-{index:04d}",
+            ordinal=index,
+            parent_section_id=None,
+            source="content-structure",
+            source_node_id=candidate.id,
+            resource_href=candidate.resource_href,
+            fragment=candidate.fragment,
+            spine_ordinal=candidate.spine_ordinal,
+            dom_ordinal=candidate.dom_ordinal,
+            level=candidate.level,
+            raw_title=candidate.title or "",
+            title=candidate.title or "",
+            title_origin="content-heading" if candidate.title_location else "accessible-name",
+            title_path=[candidate.title or ""],
+            content_label=candidate.title,
+            delivery_chapter=True,
+            evidence=[
+                SelectionEvidence(
+                    source_kind="content-structure",
+                    source_location=candidate.source_location,
+                    raw_value=candidate.title,
+                    resolved_value=candidate.title_location,
+                    decision="selected",
+                    reason=" + ".join(candidate.signals),
+                )
+            ]
+            + (
+                [
+                    SelectionEvidence(
+                        source_kind="calibre-candidate",
+                        source_location=calibre_by_candidate[candidate.id].source_location,
+                        raw_value=calibre_by_candidate[candidate.id].title,
+                        resolved_value=candidate.source_location,
+                        decision="corroborated",
+                        reason="matched independent content structure",
+                    )
+                ]
+                if candidate.id in calibre_by_candidate
+                else []
+            ),
+            issues=[],
+        )
+        for index, candidate in enumerate(selected, 1)
+    ]
     hierarchy: list[SectionBoundary] = []
     for boundary in boundaries:
         while hierarchy and hierarchy[-1].level >= boundary.level:
             hierarchy.pop()
         boundary.parent_section_id = hierarchy[-1].section_id if hierarchy else None
         hierarchy.append(boundary)
-    return SectionSelection(primary_source="content-structure", status="blocked" if issues else "ready",
-                            boundaries=boundaries, issues=issues)
+    return SectionSelection(
+        primary_source="content-structure",
+        status="blocked" if issues else "ready",
+        boundaries=boundaries,
+        issues=issues,
+    )

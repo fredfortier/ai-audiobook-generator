@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from audiobooks.workspaces import REPOSITORY_ROOT, work_path, workspace_dir
@@ -17,8 +17,9 @@ class WorkspaceTest(unittest.TestCase):
                 self.assertEqual(workspace_dir(), (REPOSITORY_ROOT / ".workspace").resolve())
 
     def test_relative_work_path_uses_configured_root(self):
-        with TemporaryDirectory() as directory, patch.dict(
-            os.environ, {"WORKSPACE_DIR": directory}, clear=True
+        with (
+            TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"WORKSPACE_DIR": directory}, clear=True),
         ):
             self.assertEqual(
                 work_path(Path("plotinus/render/enoch")),
@@ -31,8 +32,9 @@ class WorkspaceTest(unittest.TestCase):
             self.assertEqual(work_path(path), path.resolve())
 
     def test_relative_work_path_cannot_escape_configured_root(self):
-        with TemporaryDirectory() as directory, patch.dict(
-            os.environ, {"WORKSPACE_DIR": directory}, clear=True
+        with (
+            TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"WORKSPACE_DIR": directory}, clear=True),
         ):
             with self.assertRaisesRegex(ValueError, "escapes WORKSPACE_DIR"):
                 work_path(Path("../outside"))

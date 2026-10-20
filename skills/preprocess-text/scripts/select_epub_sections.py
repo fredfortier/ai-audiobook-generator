@@ -1,4 +1,5 @@
 """Emit conservative EPUB section decisions for human review."""
+
 from pathlib import Path
 
 import typer

@@ -1,4 +1,5 @@
 """Small, explicit file persistence helpers shared by pipeline stages."""
+
 from __future__ import annotations
 
 import json
@@ -16,9 +17,11 @@ def read_json(path: Path) -> Any:
 def write_atomic(path: Path, content: object) -> None:
     """Atomically replace ``path`` with text or pretty-printed JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = content if isinstance(content, str) else json.dumps(
-        content, ensure_ascii=False, indent=2
-    ) + "\n"
+    text = (
+        content
+        if isinstance(content, str)
+        else json.dumps(content, ensure_ascii=False, indent=2) + "\n"
+    )
     descriptor, temporary_path = tempfile.mkstemp(prefix="." + path.name, dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:

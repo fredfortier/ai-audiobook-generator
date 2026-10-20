@@ -1,12 +1,13 @@
 """Create a version-two prepared bundle from reviewed section decisions."""
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
+from pathlib import Path
 
-from pydantic import TypeAdapter
 import typer
+from pydantic import TypeAdapter
 
 from audiobooks.source_units import Section, admit, sha256
 
@@ -26,8 +27,10 @@ def main(version_one: Path, decisions: Path, output: Path) -> None:
         **manifest,
         "prepared_text_version": 2,
         "hashes": {**manifest["hashes"], "sections.jsonl": sha256(section_path)},
-        "checks": [*manifest.get("checks", []),
-                   "Reviewed explicit sections cover every prepared unit contiguously and bind delivery titles."],
+        "checks": [
+            *manifest.get("checks", []),
+            "Reviewed explicit sections cover every prepared unit contiguously and bind delivery titles.",
+        ],
     }
     (output / "manifest.json").write_text(json.dumps(revised, ensure_ascii=False, indent=2) + "\n")
     admit(output, required_version=2)

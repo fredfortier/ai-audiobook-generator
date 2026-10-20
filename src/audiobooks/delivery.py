@@ -1,15 +1,16 @@
 """Encode and independently verify chaptered AAC/M4B delivery artifacts."""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import math
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import unicodedata
+from pathlib import Path
 
 from audiobooks.files import write_atomic
 from audiobooks.source_units import sha256
@@ -24,7 +25,7 @@ def _slug(value: str, limit: int = 80) -> str:
         raise ValueError("author and title metadata must form portable names")
     if len(slug) > limit:
         digest = hashlib.sha256(value.encode()).hexdigest()[:8]
-        slug = slug[:limit - len(digest) - 1].rstrip("-") + "-" + digest
+        slug = slug[: limit - len(digest) - 1].rstrip("-") + "-" + digest
     return slug
 
 
@@ -36,8 +37,9 @@ def _short_title(title: str) -> str:
     return title
 
 
-def export_m4b(delivery: Path, *, variant: str | None = None,
-               replace_hash: str | None = None) -> Path:
+def export_m4b(
+    delivery: Path, *, variant: str | None = None, replace_hash: str | None = None
+) -> Path:
     """Copy a hash-verified delivery to its deterministic EXPORT_DIR path."""
     configured = os.environ.get("EXPORT_DIR", "").strip()
     if not configured:
@@ -109,15 +111,28 @@ def _version(command: str) -> str:
 
 
 def _probe(path: Path) -> dict:
-    result = subprocess.run([
-        "ffprobe", "-v", "error", "-show_format", "-show_streams", "-show_chapters",
-        "-of", "json", str(path),
-    ], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_format",
+            "-show_streams",
+            "-show_chapters",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return json.loads(result.stdout)
 
 
-def encode_m4b(assembly_directory: Path, output: Path, *, bitrate: str = "96k",
-               gain_db: float = 0.0) -> dict:
+def encode_m4b(
+    assembly_directory: Path, output: Path, *, bitrate: str = "96k", gain_db: float = 0.0
+) -> dict:
     """Encode one verified assembly and compare ffprobe chapters to its frame plan."""
     assembly_directory = work_path(assembly_directory)
     output = work_path(output)
@@ -131,7 +146,10 @@ def encode_m4b(assembly_directory: Path, output: Path, *, bitrate: str = "96k",
     metadata_path = assembly_directory / "chapters.ffmetadata"
     record_path = assembly_directory / "assembly.json"
     record = json.loads(record_path.read_text())
-    if sha256(assembly_path) != record["audio_hash"] or sha256(metadata_path) != record["metadata_hash"]:
+    if (
+        sha256(assembly_path) != record["audio_hash"]
+        or sha256(metadata_path) != record["metadata_hash"]
+    ):
         raise ValueError("assembly audio or chapter metadata changed")
     if not record.get("exact_samples_preserved") or not record.get("chapters"):
         raise ValueError("verified lossless assembly with explicit chapters required")
@@ -140,17 +158,40 @@ def encode_m4b(assembly_directory: Path, output: Path, *, bitrate: str = "96k",
     if temporary.exists():
         raise ValueError("stale partial delivery exists")
     arguments = [
-        "ffmpeg", "-hide_banner", "-nostdin", "-v", "error",
-        "-i", str(assembly_path), "-f", "ffmetadata", "-i", str(metadata_path),
-        "-map", "0:a:0", "-map_metadata", "1", "-map_chapters", "1", "-vn",
-        "-af", f"volume={gain_db:g}dB", "-c:a", "aac", "-b:a", bitrate,
-        "-movflags", "+faststart", str(temporary),
+        "ffmpeg",
+        "-hide_banner",
+        "-nostdin",
+        "-v",
+        "error",
+        "-i",
+        str(assembly_path),
+        "-f",
+        "ffmetadata",
+        "-i",
+        str(metadata_path),
+        "-map",
+        "0:a:0",
+        "-map_metadata",
+        "1",
+        "-map_chapters",
+        "1",
+        "-vn",
+        "-af",
+        f"volume={gain_db:g}dB",
+        "-c:a",
+        "aac",
+        "-b:a",
+        bitrate,
+        "-movflags",
+        "+faststart",
+        str(temporary),
     ]
     try:
         subprocess.run(arguments, capture_output=True, text=True, check=True)
         probe = _probe(temporary)
-        audio_streams = [stream for stream in probe.get("streams", [])
-                         if stream.get("codec_type") == "audio"]
+        audio_streams = [
+            stream for stream in probe.get("streams", []) if stream.get("codec_type") == "audio"
+        ]
         if len(audio_streams) != 1 or audio_streams[0].get("codec_name") != "aac":
             raise ValueError("delivery must contain exactly one AAC audio stream")
         if "mp4" not in probe.get("format", {}).get("format_name", ""):
@@ -176,16 +217,26 @@ def encode_m4b(assembly_directory: Path, output: Path, *, bitrate: str = "96k",
             title = observed.get("tags", {}).get("title")
             if title != planned["title"]:
                 raise ValueError("ffprobe chapter title differs from normalized section title")
-            if (abs(observed_start - planned_start) > tolerance_seconds
-                    or abs(observed_end - planned_end) > tolerance_seconds):
+            if (
+                abs(observed_start - planned_start) > tolerance_seconds
+                or abs(observed_end - planned_end) > tolerance_seconds
+            ):
                 raise ValueError("ffprobe chapter time differs from the frame plan")
-            verified_chapters.append({"section_id": planned.get("section_id"), "title": title,
-                                      "planned_start_frame": planned["start"],
-                                      "planned_end_frame": planned["end"],
-                                      "observed_start_seconds": observed_start,
-                                      "observed_end_seconds": observed_end})
-        if any(abs(float(actual[index]["end_time"]) - float(actual[index + 1]["start_time"]))
-               > tolerance_seconds for index in range(len(actual) - 1)):
+            verified_chapters.append(
+                {
+                    "section_id": planned.get("section_id"),
+                    "title": title,
+                    "planned_start_frame": planned["start"],
+                    "planned_end_frame": planned["end"],
+                    "observed_start_seconds": observed_start,
+                    "observed_end_seconds": observed_end,
+                }
+            )
+        if any(
+            abs(float(actual[index]["end_time"]) - float(actual[index + 1]["start_time"]))
+            > tolerance_seconds
+            for index in range(len(actual) - 1)
+        ):
             raise ValueError("ffprobe chapters are not contiguous")
         temporary.replace(output)
     except BaseException:

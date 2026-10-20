@@ -1,9 +1,10 @@
 """Original Chatterbox script records and their single Pandoc codec."""
+
 from __future__ import annotations
 
-import math
 import io
 import json
+import math
 from typing import Literal
 
 import panflute as pf
@@ -45,8 +46,10 @@ class Speech(Record):
     def validate_content(self):
         if any(not p.strip() for p in self.paragraphs):
             raise ValueError("empty speech paragraph")
-        if any(p != "\n".join(" ".join(line.split()) for line in p.split("\n"))
-               for p in self.paragraphs):
+        if any(
+            p != "\n".join(" ".join(line.split()) for line in p.split("\n"))
+            for p in self.paragraphs
+        ):
             raise ValueError("speech requires single spaces and explicit verse line breaks")
         if self.heading_level is not None and len(self.paragraphs) != 1:
             raise ValueError("a heading must be the only body element")
@@ -75,10 +78,14 @@ class Script(Record):
 
 
 def convert_document(value, input_format, output_format):
-    return pf.convert_text(value, input_format=input_format, output_format=output_format,
-                           standalone=True, pandoc_path=pypandoc.get_pandoc_path(),
-                           extra_args=["--fail-if-warnings"] +
-                                      (["--wrap=none"] if output_format == DIALECT else []))
+    return pf.convert_text(
+        value,
+        input_format=input_format,
+        output_format=output_format,
+        standalone=True,
+        pandoc_path=pypandoc.get_pandoc_path(),
+        extra_args=["--fail-if-warnings"] + (["--wrap=none"] if output_format == DIALECT else []),
+    )
 
 
 def literal_inlines(text: str):
@@ -103,7 +110,9 @@ def project_text(element) -> str:
     if isinstance(element, pf.LineBreak):
         return "\n"
     if isinstance(element, (pf.Emph, pf.Strong, pf.Quoted, pf.Span, pf.Para, pf.Plain, pf.Header)):
-        if isinstance(element, pf.Span) and (element.attributes or element.classes or element.identifier):
+        if isinstance(element, pf.Span) and (
+            element.attributes or element.classes or element.identifier
+        ):
             raise ValueError("attributed inline spans are unsupported")
         return "".join(project_text(child) for child in element.content)
     raise ValueError(f"unsupported spoken element: {type(element).__name__}")
@@ -113,10 +122,18 @@ def write_script(script: Script) -> str:
     blocks = []
     for s in script.speech:
         attrs = {"voice": s.voice}
-        attrs.update({k: str(v) for k, v in s.parameters.model_dump().items()
-                      if v != getattr(script.defaults, k)})
-        body = ([pf.Header(*literal_inlines(s.paragraphs[0]), level=s.heading_level)]
-                if s.heading_level else [pf.Para(*literal_inlines(p)) for p in s.paragraphs])
+        attrs.update(
+            {
+                k: str(v)
+                for k, v in s.parameters.model_dump().items()
+                if v != script.defaults.model_dump()[k]
+            }
+        )
+        body = (
+            [pf.Header(*literal_inlines(s.paragraphs[0]), level=s.heading_level)]
+            if s.heading_level
+            else [pf.Para(*literal_inlines(p)) for p in s.paragraphs]
+        )
         blocks.append(pf.Div(*body, identifier=s.id, classes=["speech"], attributes=attrs))
     metadata = script.model_dump(exclude={"speech"})
     doc = pf.Doc(*blocks, metadata=metadata)
@@ -127,6 +144,7 @@ def parse_document(markdown: str):
     # Inspect Pandoc attributes before Panflute turns their pairs into a dictionary.
     raw = convert_document(markdown, DIALECT, "json")
     ast = json.loads(raw)
+
     def check_attributes(node):
         if isinstance(node, dict):
             if node.get("t") in {"Div", "Span", "Header", "Code", "CodeBlock", "Link", "Image"}:
@@ -139,6 +157,7 @@ def parse_document(markdown: str):
         elif isinstance(node, list):
             for child in node:
                 check_attributes(child)
+
     check_attributes(ast)
     return pf.load(io.StringIO(raw))
 
@@ -149,8 +168,10 @@ def read_script(markdown: str) -> Script:
     allowed = set(Script.model_fields) - {"speech"}
     if set(metadata) != allowed:
         raise ValueError(f"invalid metadata fields: {set(metadata) ^ allowed}")
-    if isinstance(metadata['adapt_text_version'], bool) or any(isinstance(v, bool) for v in metadata['defaults'].values()):
-        raise ValueError('version and numeric controls cannot be booleans')
+    if isinstance(metadata["adapt_text_version"], bool) or any(
+        isinstance(v, bool) for v in metadata["defaults"].values()
+    ):
+        raise ValueError("version and numeric controls cannot be booleans")
     metadata["adapt_text_version"] = int(metadata["adapt_text_version"])
     metadata["defaults"] = {k: float(v) for k, v in metadata["defaults"].items()}
     defaults = Parameters.model_validate(metadata["defaults"])
@@ -166,8 +187,13 @@ def read_script(markdown: str) -> Script:
             raise ValueError("speech body must contain paragraphs or one heading")
         params = defaults.model_dump()
         params.update({k: float(v) for k, v in block.attributes.items() if k != "voice"})
-        speech.append(Speech(id=block.identifier, voice=block.attributes["voice"],
-                             parameters=Parameters.model_validate(params),
-                             paragraphs=[project_text(paragraph) for paragraph in body],
-                             heading_level=body[0].level if heading else None))
+        speech.append(
+            Speech(
+                id=block.identifier,
+                voice=block.attributes["voice"],
+                parameters=Parameters.model_validate(params),
+                paragraphs=[project_text(paragraph) for paragraph in body],
+                heading_level=body[0].level if heading else None,
+            )
+        )
     return Script.model_validate({**metadata, "speech": speech})

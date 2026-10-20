@@ -20,3 +20,12 @@ books/
 # Local book work directories
 workspace/**
 !workspace/AGENTS.override.md
+
+# Default production workspace and development caches
+.workspace/
+.tmp/
+.pytest_cache/
+.ruff_cache/
+
+# Editor swap files
+*.swp
