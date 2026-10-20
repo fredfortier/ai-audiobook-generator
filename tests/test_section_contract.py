@@ -78,7 +78,7 @@ class SectionContractTest(unittest.TestCase):
                 preparation_changes=[],
             ),
         ]
-        shared_projection_fields = {
+        shared_projection_fields: dict[str, object] = {
             "parent_section_id": None,
             "level": 1,
             "role": "body",
@@ -88,23 +88,27 @@ class SectionContractTest(unittest.TestCase):
             "issues": [],
         }
         decisions = [
-            SectionProjection(
-                section_id="one",
-                raw_title="One",
-                boundary_unit_id="u000001",
-                content_title_unit_id="u000001",
-                source_location="nav:one",
-                target_fragment="one",
-                **shared_projection_fields,
+            SectionProjection.model_validate(
+                {
+                    "section_id": "one",
+                    "raw_title": "One",
+                    "boundary_unit_id": "u000001",
+                    "content_title_unit_id": "u000001",
+                    "source_location": "nav:one",
+                    "target_fragment": "one",
+                    **shared_projection_fields,
+                }
             ),
-            SectionProjection(
-                section_id="two",
-                raw_title="Two",
-                boundary_unit_id="u000003",
-                content_title_unit_id=None,
-                source_location="nav:two",
-                target_fragment="two",
-                **shared_projection_fields,
+            SectionProjection.model_validate(
+                {
+                    "section_id": "two",
+                    "raw_title": "Two",
+                    "boundary_unit_id": "u000003",
+                    "content_title_unit_id": None,
+                    "source_location": "nav:two",
+                    "target_fragment": "two",
+                    **shared_projection_fields,
+                }
             ),
         ]
         projected, section_records = project_section_titles(units, decisions)

@@ -9,15 +9,27 @@ import json
 import random
 import shutil
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Literal
 
 import typer
 from pydantic import Field, TypeAdapter
 
-from audiobooks.adaptation import Action, verify_exported_scripts
+from audiobooks.adaptation import (
+    ActingScore,
+    Action,
+    AdaptationManifest,
+    AdaptedSection,
+    Coverage,
+    DirectionLineage,
+    SpeechSpan,
+    verify_exported_scripts,
+)
 
 # Keep the local name in the verified-revision AST fingerprint while ownership
 # lives in the shared persistence module.
+from audiobooks.files import read_json
 from audiobooks.files import write_atomic as atomic
 from audiobooks.script_contract import Parameters, Record, read_script
 from audiobooks.segmentation import generation_spans
@@ -56,14 +68,103 @@ class Calibration(Record):
     reasons: dict[str, str | CalibrationEvidence]
 
 
+class RecordedChoiceEvidence(Record):
+    """Historical choice provenance retained verbatim in frozen render-plan hashes."""
+
+    choice: str
+    score_move_ids: list[str]
+    proposed: Parameters
+    realized: Parameters
+    audition_evidence: str
+
+
+class RecordedCalibration(Record):
+    """Read existing plans without accepting historical choices as new directed auditions."""
+
+    source_script_hashes: dict[str, str]
+    candidate_script_hashes: dict[str, str]
+    reasons: dict[str, str | CalibrationEvidence | RecordedChoiceEvidence]
+
+
 class SeedOverride(Record):
     segment_id: str
     seed: int = Field(ge=0, lt=2**32)
     reason: str = Field(min_length=1)
 
 
+class AudioProperties(Record):
+    sample_rate: int
+    channels: int
+    frames: int
+    duration_seconds: float
+    peak: float
+    rms: float
+    dc_offset: float
+
+
+class RenderSegment(Record):
+    id: str
+    script: str
+    section_id: str | None = None
+    speech_id: str
+    paragraph: int
+    start: int
+    end: int
+    text: str
+    native_text: str
+    native_tokens: int
+    voice: str
+    parameters: Parameters
+    seed: int
+    heading_level: int | None
+    score_move_ids: list[str] = Field(default_factory=list)
+    directing_action: Action | None = None
+    directing_choice: str | None = None
+    proposed_parameters: Parameters | None = None
+
+
+class ChapterSource(Record):
+    section_id: str
+    title: str
+
+
+class DeliverySection(ChapterSource):
+    title_speech_id: str
+    start_segment_id: str
+
+
+class RenderPlan(Record):
+    render_version: Literal[1, 2]
+    title: str
+    author: str | None = None
+    model_path: str
+    device: Literal["cpu", "cuda", "mps"]
+    token_limit: int | None = None
+    voices: dict[str, str]
+    runtime_hashes: dict[str, str]
+    input_hashes: dict[str, str]
+    clause_cuts: list[ClauseCut] = Field(default_factory=list)
+    segments: list[RenderSegment]
+    delivery_sections: list[DeliverySection]
+    acting_score_hash: str | None = None
+    seed_overrides: list[SeedOverride] = Field(default_factory=list)
+    calibration: RecordedCalibration | None = None
+
+
+class RenderManifest(Record):
+    plan_hash: str
+    audio_quality_verified: bool = False
+    verified_revision_import_hash: str | None = None
+
+
+class AudioRecord(Record):
+    generation_hash: str
+    audio_hash: str
+    properties: AudioProperties
+
+
 @app.command()
-def schema(kind: str):
+def schema(kind: str) -> None:
     """Print strict native schemas for clause-cut lists or calibration records."""
     models = {
         "clause-cuts": TypeAdapter(list[ClauseCut]),
@@ -78,11 +179,11 @@ def schema(kind: str):
 def validate_calibration_provenance(
     calibration: Calibration | None,
     changed: set[str],
-    directing_by_speech: dict,
-    proposed_parameters: dict,
-    realized_parameters: dict,
+    directing_by_speech: Mapping[str, DirectionLineage],
+    proposed_parameters: dict[str, Parameters],
+    realized_parameters: dict[str, Parameters],
     directed: bool,
-):
+) -> None:
     if calibration is None:
         return
     if set(calibration.reasons) != changed:
@@ -93,8 +194,8 @@ def validate_calibration_provenance(
                 raise ValueError("directed calibration requires structured score provenance")
             direction = directing_by_speech[speech_id]
             if (
-                reason.action != direction["action"]
-                or reason.score_move_ids != direction["score_move_ids"]
+                reason.action != direction.action
+                or reason.score_move_ids != direction.score_move_ids
                 or reason.proposed != proposed_parameters[speech_id]
                 or reason.realized != realized_parameters[speech_id]
             ):
@@ -105,7 +206,7 @@ def validate_calibration_provenance(
             raise ValueError("legacy calibration reason must be nonblank")
 
 
-def runtime_hashes():
+def runtime_hashes() -> dict[str, str]:
     paths = [
         ROOT / "uv.lock",
         *(
@@ -116,22 +217,19 @@ def runtime_hashes():
     return {str(p.relative_to(ROOT)): sha256(p) for p in paths}
 
 
-def load_plan(workspace):
-    plan = json.loads((workspace / "plan.json").read_text())
-    manifest = json.loads((workspace / "manifest.json").read_text())
-    if identity(plan) != manifest["plan_hash"]:
+def load_plan(workspace: Path) -> RenderPlan:
+    plan = RenderPlan.model_validate_json((workspace / "plan.json").read_text())
+    manifest = RenderManifest.model_validate_json((workspace / "manifest.json").read_text())
+    if identity(plan) != manifest.plan_hash:
         raise ValueError("frozen generation plan changed")
-    if plan["runtime_hashes"] != runtime_hashes():
+    if plan.runtime_hashes != runtime_hashes():
         raise ValueError("render runtime changed; freeze a new plan")
-    for path, digest in plan["input_hashes"].items():
+    for path, digest in plan.input_hashes.items():
         if sha256(Path(path)) != digest:
             raise ValueError(f"render input changed: {path}")
-    if "verified_revision_import_hash" in manifest:
+    if manifest.verified_revision_import_hash is not None:
         import_path = workspace / "verified-revision-import.json"
-        if (
-            identity(json.loads(import_path.read_text()))
-            != manifest["verified_revision_import_hash"]
-        ):
+        if identity(read_json(import_path)) != manifest.verified_revision_import_hash:
             raise ValueError("verified revision import record changed")
     return plan
 
@@ -144,12 +242,12 @@ def plan(
     clause_cuts: Path,
     token_limit: int = 220,
     seed: int = 0,
-    device: str = "cuda",
+    device: Literal["cuda", "cpu", "mps"] = "cuda",
     calibrated_script_dir: Path | None = None,
     calibration_record: Path | None = None,
     seed_overrides: Path | None = None,
     reuse_from: Path | None = None,
-):
+) -> None:
     """Freeze complete script order, native counts, model and reviewed clause cuts."""
     from chatterbox.models.t3.modules.t3_config import T3Config
     from chatterbox.models.tokenizers import EnTokenizer
@@ -158,56 +256,55 @@ def plan(
     workspace = work_path(workspace)
     if workspace.exists():
         raise ValueError("use a new render workspace")
-    if device not in ("cuda", "cpu", "mps") or not 0 < token_limit <= T3Config().max_text_tokens:
+    if not 0 < token_limit <= T3Config().max_text_tokens:
         raise ValueError("explicit supported device and budget within original T3 context required")
     adaptation = adaptation.resolve()
     model_path = model_path.resolve()
     manifest_path = adaptation / "manifest.json"
-    manifest = json.loads(manifest_path.read_text())
+    manifest = AdaptationManifest.model_validate_json(manifest_path.read_text())
     coverage_path = adaptation / "coverage.json"
-    coverage = json.loads(coverage_path.read_text())
-    if not manifest["complete"] or identity(coverage) != manifest["coverage_hash"]:
+    coverage = TypeAdapter(list[Coverage]).validate_json(coverage_path.read_text())
+    if not manifest.complete or identity(coverage) != manifest.coverage_hash:
         raise ValueError("complete verified adaptation coverage required")
-    verify_exported_scripts(adaptation, manifest["script_files"], manifest.get("script_hashes", {}))
-    directing_by_speech = {}
+    verify_exported_scripts(adaptation, manifest.script_files, manifest.script_hashes)
+    directing_by_speech: dict[str, SpeechSpan] = {}
     for item in coverage:
-        for span in item.get("speech_spans", []):
-            if span["speech_id"] in directing_by_speech:
+        for span in item.speech_spans:
+            if span.speech_id in directing_by_speech:
                 raise ValueError("speech has duplicate adaptation coverage")
-            directing_by_speech[span["speech_id"]] = span
+            directing_by_speech[span.speech_id] = span
     acting_score_path = None
-    if manifest.get("acting_score_hash"):
-        acting_score_path = adaptation / manifest.get("acting_score_file", "")
+    if manifest.acting_score_hash:
+        acting_score_path = adaptation / manifest.acting_score_file
         if (
             not acting_score_path.is_file()
-            or identity(json.loads(acting_score_path.read_text())) != manifest["acting_score_hash"]
+            or identity(ActingScore.model_validate_json(acting_score_path.read_text()))
+            != manifest.acting_score_hash
         ):
             raise ValueError("exact accepted acting score required")
         for speech_id, span in directing_by_speech.items():
-            if (
-                not span.get("score_move_ids")
-                or not span.get("action")
-                or not span.get("proposed_parameters")
-            ):
+            if not span.score_move_ids or not span.action or not span.proposed_parameters:
                 raise ValueError(
                     "directed speech lacks score and proposed-vector lineage: " + speech_id
                 )
-    section_path = adaptation / manifest.get("section_file", "")
-    if not manifest.get("section_file") or not section_path.is_file():
+    section_path = adaptation / manifest.section_file
+    if not manifest.section_file or not section_path.is_file():
         raise ValueError("explicit adapted section contract required")
-    adapted_sections = json.loads(section_path.read_text())
-    if identity(adapted_sections) != manifest.get("sections_hash"):
+    adapted_sections = TypeAdapter(list[AdaptedSection]).validate_json(section_path.read_text())
+    if identity(adapted_sections) != manifest.sections_hash:
         raise ValueError("adapted section contract changed")
     script_to_section = {
-        section["script_file"]: section["section_id"]
+        section.script_file: section.section_id
         for section in adapted_sections
-        if "script_file" in section
+        if section.script_file is not None
     }
-    if len(script_to_section) != sum("script_file" in section for section in adapted_sections):
+    if len(script_to_section) != sum(
+        section.script_file is not None for section in adapted_sections
+    ):
         raise ValueError("a script file cannot represent multiple sections")
-    if set(script_to_section) != set(manifest["script_files"]):
+    if set(script_to_section) != set(manifest.script_files):
         raise ValueError("every script must bind to exactly one explicit section")
-    cuts = [ClauseCut.model_validate(c) for c in json.loads(clause_cuts.read_text())]
+    cuts = TypeAdapter(list[ClauseCut]).validate_json(clause_cuts.read_text())
     if (calibrated_script_dir is None) != (calibration_record is None):
         raise ValueError("calibrated scripts require their source-hash and reason record")
     calibration = (
@@ -216,8 +313,8 @@ def plan(
         else Calibration.model_validate_json(calibration_record.read_text())
     )
     if calibration is not None and (
-        set(calibration.source_script_hashes) != set(manifest["script_files"])
-        or set(calibration.candidate_script_hashes) != set(manifest["script_files"])
+        set(calibration.source_script_hashes) != set(manifest.script_files)
+        or set(calibration.candidate_script_hashes) != set(manifest.script_files)
     ):
         raise ValueError("calibration hash inventories must match the exact script inventory")
     if len({(c.speech_id, c.paragraph, c.offset) for c in cuts}) != len(cuts):
@@ -234,19 +331,21 @@ def plan(
     tokenizer = EnTokenizer(str(model_path / "tokenizer.json"))
     if calibration_record is not None:
         sources.append(calibration_record.resolve())
-    segments = []
-    seen = set()
-    used_cuts = set()
-    references = {}
-    changed = set()
-    proposed_parameters = {}
-    realized_parameters = {}
-    for script_name in manifest["script_files"]:
+    segments: list[RenderSegment] = []
+    seen: set[str] = set()
+    used_cuts: set[tuple[str, int, int]] = set()
+    references: dict[str, str] = {}
+    changed: set[str] = set()
+    proposed_parameters: dict[str, Parameters] = {}
+    realized_parameters: dict[str, Parameters] = {}
+    for script_name in manifest.script_files:
         path = adaptation / script_name
         sources.append(path)
         script = read_script(path.read_text())
         proposed_parameters.update({speech.id: speech.parameters for speech in script.speech})
         if calibration is not None:
+            if calibrated_script_dir is None:
+                raise ValueError("calibrated scripts require a candidate directory")
             candidate_path = (calibrated_script_dir / Path(script_name).name).resolve()
             if calibration.source_script_hashes.get(script_name) != sha256(
                 path
@@ -306,7 +405,7 @@ def plan(
                 for start, end in spans:
                     raw = text[start:end].strip()
                     native = punc_norm(raw)
-                    segment = {
+                    data: dict[str, object] = {
                         "id": f"g{len(segments)+1:06d}",
                         "script": script_name,
                         "section_id": script_to_section[script_name],
@@ -322,23 +421,23 @@ def plan(
                         "seed": seed + len(segments),
                         "heading_level": speech.heading_level,
                     }
-                    if manifest.get("acting_score_hash"):
+                    if manifest.acting_score_hash:
                         direction = directing_by_speech[speech.id]
                         if (
-                            Parameters.model_validate(direction["proposed_parameters"])
+                            Parameters.model_validate(direction.proposed_parameters)
                             != proposed_parameters[speech.id]
                         ):
                             raise ValueError(
                                 "coverage proposed vector differs from source script: " + speech.id
                             )
-                        segment.update(
+                        data.update(
                             {
-                                "score_move_ids": direction["score_move_ids"],
-                                "directing_action": direction["action"],
+                                "score_move_ids": direction.score_move_ids,
+                                "directing_action": direction.action,
                                 "proposed_parameters": proposed_parameters[speech.id].model_dump(),
                             }
                         )
-                    segments.append(segment)
+                    segments.append(RenderSegment.model_validate(data))
     if len(used_cuts) != len(cuts):
         raise ValueError("clause cut does not locate speech")
     if seed < 0 or seed + len(segments) - 1 >= 2**32:
@@ -346,15 +445,15 @@ def plan(
     overrides = (
         []
         if seed_overrides is None
-        else [SeedOverride.model_validate(item) for item in json.loads(seed_overrides.read_text())]
+        else TypeAdapter(list[SeedOverride]).validate_json(seed_overrides.read_text())
     )
     if len({item.segment_id for item in overrides}) != len(overrides):
         raise ValueError("duplicate segment seed override")
-    by_id = {segment["id"]: segment for segment in segments}
+    by_id = {segment.id: segment for segment in segments}
     for item in overrides:
         if item.segment_id not in by_id or not item.reason.strip():
             raise ValueError("seed override requires a known segment and scoped reason")
-        by_id[item.segment_id]["seed"] = item.seed
+        by_id[item.segment_id].seed = item.seed
     if seed_overrides is not None:
         sources.append(seed_overrides.resolve())
     validate_calibration_provenance(
@@ -363,42 +462,38 @@ def plan(
         directing_by_speech,
         proposed_parameters,
         realized_parameters,
-        bool(manifest.get("acting_score_hash")),
+        bool(manifest.acting_score_hash),
     )
-    expected = [span["speech_id"] for item in coverage for span in item.get("speech_spans", [])]
-    actual = list(dict.fromkeys(segment["speech_id"] for segment in segments))
+    expected = [span.speech_id for item in coverage for span in item.speech_spans]
+    actual = list(dict.fromkeys(segment.speech_id for segment in segments))
     if expected != actual:
         raise ValueError("script order does not match adaptation ledger")
-    delivery_sections = []
+    delivery_sections: list[DeliverySection] = []
     for section in adapted_sections:
-        if not section["delivery_chapter"]:
+        if not section.delivery_chapter:
             continue
-        matching = [
-            segment
-            for segment in segments
-            if segment["speech_id"] == section.get("title_speech_id")
-        ]
-        if not matching or matching[0]["start"] != 0:
+        matching = [segment for segment in segments if segment.speech_id == section.title_speech_id]
+        if not matching or matching[0].start != 0:
             raise ValueError(
-                "delivery section title has no exact render start: " + section["section_id"]
+                "delivery section title has no exact render start: " + section.section_id
             )
-        title = " ".join(segment["text"] for segment in matching)
-        if " ".join(title.split()) != " ".join(section.get("normalized_title", "").split()):
-            raise ValueError("delivery title bypassed normalized speech: " + section["section_id"])
+        title = " ".join(segment.text for segment in matching)
+        if " ".join(title.split()) != " ".join(section.normalized_title.split()):
+            raise ValueError("delivery title bypassed normalized speech: " + section.section_id)
         delivery_sections.append(
-            {
-                "section_id": section["section_id"],
-                "title": section["normalized_title"],
-                "title_speech_id": section["title_speech_id"],
-                "start_segment_id": matching[0]["id"],
-            }
+            DeliverySection(
+                section_id=section.section_id,
+                title=section.normalized_title,
+                title_speech_id=section.title_speech_id or "",
+                start_segment_id=matching[0].id,
+            )
         )
     if not delivery_sections:
         raise ValueError("at least one explicit delivery section required")
-    result = {
+    data_plan: dict[str, object] = {
         "render_version": 2,
-        "title": manifest["title"],
-        "author": manifest.get("author"),
+        "title": manifest.title,
+        "author": manifest.author,
         "model_path": str(model_path),
         "device": device,
         "token_limit": token_limit,
@@ -409,11 +504,12 @@ def plan(
         "segments": segments,
         "delivery_sections": delivery_sections,
     }
-    if manifest.get("acting_score_hash"):
-        result["acting_score_hash"] = manifest["acting_score_hash"]
-    result["seed_overrides"] = [item.model_dump() for item in overrides]
+    if manifest.acting_score_hash:
+        data_plan["acting_score_hash"] = manifest.acting_score_hash
+    data_plan["seed_overrides"] = [item.model_dump() for item in overrides]
     if calibration is not None:
-        result["calibration"] = calibration.model_dump()
+        data_plan["calibration"] = calibration.model_dump()
+    result = RenderPlan.model_validate(data_plan)
     workspace.mkdir(parents=True)
     atomic(workspace / "plan.json", result)
     atomic(
@@ -422,10 +518,10 @@ def plan(
     )
     if reuse_from is not None:
         prior = load_plan(reuse_from)
-        prior_segments = {item["id"]: item for item in prior["segments"]}
+        prior_segments = {item.id: item for item in prior.segments}
         reused = 0
         for segment in segments:
-            previous = prior_segments.get(segment["id"])
+            previous = prior_segments.get(segment.id)
             if previous is None or generation_identity(prior, previous) != generation_identity(
                 result, segment
             ):
@@ -435,7 +531,7 @@ def plan(
                 continue
             directory = workspace / "audio"
             directory.mkdir(exist_ok=True)
-            target = directory / (segment["id"] + ".wav")
+            target = directory / (segment.id + ".wav")
             temporary = target.with_suffix(".tmp.wav")
             shutil.copyfile(reuse_from / "audio" / target.name, temporary)
             temporary.replace(target)
@@ -445,68 +541,75 @@ def plan(
     typer.echo(f"{len(segments)} native-tokenized generation segments; plan {identity(result)}")
 
 
-def audio_properties(path):
+def audio_properties(path: Path) -> AudioProperties:
     import numpy as np
-    import soundfile as sf
+
+    # SoundFile 0.14 annotates this API but ships no py.typed marker (docs/typing-boundaries.md).
+    import soundfile as sf  # pyright: ignore[reportMissingTypeStubs]
 
     audio, rate = sf.read(path, dtype="float32", always_2d=True)
     if not len(audio) or not np.isfinite(audio).all():
         raise ValueError("empty or nonfinite saved audio")
-    return {
-        "sample_rate": rate,
-        "channels": audio.shape[1],
-        "frames": len(audio),
-        "duration_seconds": len(audio) / rate,
-        "peak": float(np.max(np.abs(audio))),
-        "rms": float(np.sqrt(np.mean(audio.astype(np.float64) ** 2))),
-        "dc_offset": float(np.mean(audio.astype(np.float64))),
-    }
+    return AudioProperties(
+        sample_rate=rate,
+        channels=int(audio.shape[1]),
+        frames=len(audio),
+        duration_seconds=len(audio) / rate,
+        peak=float(np.max(np.abs(audio))),
+        rms=float(np.sqrt(np.mean(audio.astype(np.float64) ** 2))),
+        dc_offset=float(np.mean(audio.astype(np.float64))),
+    )
 
 
-def generation_identity(plan, segment):
-    if plan["render_version"] == 1:
+def generation_identity(plan: RenderPlan, segment: RenderSegment) -> str:
+    if plan.render_version == 1:
         return identity({"plan": identity(plan), "segment": segment})
-    binding = plan["voices"][segment["voice"]]
+    binding = plan.voices[segment.voice]
     return identity(
         {
             "segment": segment,
-            "runtime_hashes": plan["runtime_hashes"],
-            "device": plan["device"],
+            "runtime_hashes": plan.runtime_hashes,
+            "device": plan.device,
             "model_hashes": {
-                name: plan["input_hashes"][str(Path(plan["model_path"]) / name)]
-                for name in MODEL_FILES
+                name: plan.input_hashes[str(Path(plan.model_path) / name)] for name in MODEL_FILES
             },
             "reference": (
                 binding
                 if binding == "builtin"
-                else {"path": binding, "hash": plan["input_hashes"][binding]}
+                else {"path": binding, "hash": plan.input_hashes[binding]}
             ),
         }
     )
 
 
-def verified_segment(workspace, plan, segment):
-    path = workspace / "audio" / (segment["id"] + ".wav")
+def verified_segment(
+    workspace: Path, plan: RenderPlan, segment: RenderSegment
+) -> AudioRecord | None:
+    path = workspace / "audio" / (segment.id + ".wav")
     record_path = path.with_suffix(".json")
     if not record_path.exists():
         return None
-    record = json.loads(record_path.read_text())
-    if record["generation_hash"] != generation_identity(plan, segment):
+    record = AudioRecord.model_validate_json(record_path.read_text())
+    if record.generation_hash != generation_identity(plan, segment):
         raise ValueError("saved segment has a different generation identity")
-    if record["audio_hash"] != sha256(path) or record["properties"] != audio_properties(path):
+    if record.audio_hash != sha256(path) or record.properties != audio_properties(path):
         raise ValueError("saved audio changed or failed decoded verification")
     return record
 
 
 def _definition_fingerprint(path: Path, names: set[str]) -> str:
     tree = ast.parse(path.read_text())
-    definitions = [
+    definitions: list[ast.stmt] = [
         node
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
         and node.name in names
     ]
-    if {node.name for node in definitions} != names:
+    if {
+        node.name
+        for node in definitions
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    } != names:
         raise ValueError("generation implementation definition missing")
     return hashlib.sha256(
         ast.dump(ast.Module(body=definitions, type_ignores=[]), include_attributes=False).encode()
@@ -514,12 +617,14 @@ def _definition_fingerprint(path: Path, names: set[str]) -> str:
 
 
 @app.command("import-verified-revision")
-def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_checkout: Path):
+def import_verified_revision(
+    workspace: Path, prior_workspace: Path, verifier_checkout: Path
+) -> None:
     """Reuse waveforms only after their recorded runtime verifies in an isolated checkout."""
     workspace = work_path(workspace)
     prior_workspace = work_path(prior_workspace)
     plan = load_plan(workspace)
-    prior_plan = json.loads((prior_workspace / "plan.json").read_text())
+    prior_plan = RenderPlan.model_validate_json((prior_workspace / "plan.json").read_text())
     verifier_source = verifier_checkout / "src" / "audiobooks" / "rendering.py"
     if not (verifier_checkout / "pyproject.toml").is_file() or not verifier_source.is_file():
         raise ValueError("isolated verifier checkout lacks the recorded rendering implementation")
@@ -540,7 +645,7 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
         timeout=300,
     )
     expected_status = (
-        f"{len(prior_plan['segments'])}/{len(prior_plan['segments'])} saved segments verified"
+        f"{len(prior_plan.segments)}/{len(prior_plan.segments)} saved segments verified"
     )
     if status_result.returncode or expected_status not in status_result.stdout:
         raise ValueError("recorded revision did not verify every prior waveform")
@@ -563,45 +668,45 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
         text=True,
         check=True,
     ).stdout.strip()
-    if plan["device"] != prior_plan["device"] or plan["voices"] != prior_plan["voices"]:
+    if plan.device != prior_plan.device or plan.voices != prior_plan.voices:
         raise ValueError("device or voice conditioning differs from the verified plan")
     for name in MODEL_FILES:
-        old = prior_plan["input_hashes"][str(Path(prior_plan["model_path"]) / name)]
-        new = plan["input_hashes"][str(Path(plan["model_path"]) / name)]
+        old = prior_plan.input_hashes[str(Path(prior_plan.model_path) / name)]
+        new = plan.input_hashes[str(Path(plan.model_path) / name)]
         if old != new:
             raise ValueError("model snapshot bytes differ from the verified plan")
     for dependency in ("uv.lock",):
-        if prior_plan["runtime_hashes"].get(dependency) != plan["runtime_hashes"].get(dependency):
+        if prior_plan.runtime_hashes.get(dependency) != plan.runtime_hashes.get(dependency):
             raise ValueError("generation dependency differs from the verified plan: " + dependency)
-    prior_by_id = {segment["id"]: segment for segment in prior_plan["segments"]}
-    imported = []
+    prior_by_id = {segment.id: segment for segment in prior_plan.segments}
+    imported: list[dict[str, str]] = []
     directory = workspace / "audio"
     directory.mkdir(exist_ok=True)
-    for segment in plan["segments"]:
-        previous = prior_by_id.get(segment["id"])
-        current_request = {key: value for key, value in segment.items() if key != "section_id"}
-        if previous != current_request:
-            raise ValueError("generation request differs from verified revision: " + segment["id"])
-        source = prior_workspace / "audio" / (segment["id"] + ".wav")
-        prior_record = json.loads(source.with_suffix(".json").read_text())
+    for segment in plan.segments:
+        previous = prior_by_id.get(segment.id)
+        current_request = segment.model_dump(exclude_unset=True, exclude={"section_id"})
+        if previous is None or previous.model_dump(exclude_unset=True) != current_request:
+            raise ValueError("generation request differs from verified revision: " + segment.id)
+        source = prior_workspace / "audio" / (segment.id + ".wav")
+        prior_record = AudioRecord.model_validate_json(source.with_suffix(".json").read_text())
         if (
-            sha256(source) != prior_record["audio_hash"]
-            or audio_properties(source) != prior_record["properties"]
+            sha256(source) != prior_record.audio_hash
+            or audio_properties(source) != prior_record.properties
         ):
             raise ValueError("prior waveform changed after recorded-revision verification")
         target = directory / source.name
         temporary = target.with_suffix(".tmp.wav")
         shutil.copyfile(source, temporary)
-        if sha256(temporary) != prior_record["audio_hash"]:
+        if sha256(temporary) != prior_record.audio_hash:
             raise ValueError("waveform bytes changed during verified import")
         temporary.replace(target)
-        record = {
-            "generation_hash": generation_identity(plan, segment),
-            "audio_hash": sha256(target),
-            "properties": audio_properties(target),
-        }
+        record = AudioRecord(
+            generation_hash=generation_identity(plan, segment),
+            audio_hash=sha256(target),
+            properties=audio_properties(target),
+        )
         atomic(target.with_suffix(".json"), record)
-        imported.append({"segment_id": segment["id"], "audio_hash": record["audio_hash"]})
+        imported.append({"segment_id": segment.id, "audio_hash": record.audio_hash})
     import_record = {
         "import_version": 1,
         "prior_plan_hash": identity(prior_plan),
@@ -612,10 +717,13 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
         "segments": imported,
     }
     atomic(workspace / "verified-revision-import.json", import_record)
-    manifest = json.loads((workspace / "manifest.json").read_text())
+    manifest = RenderManifest.model_validate_json((workspace / "manifest.json").read_text())
     atomic(
         workspace / "manifest.json",
-        {**manifest, "verified_revision_import_hash": identity(import_record)},
+        {
+            **manifest.model_dump(exclude_unset=True),
+            "verified_revision_import_hash": identity(import_record),
+        },
     )
     load_plan(workspace)
     typer.echo(
@@ -624,52 +732,60 @@ def import_verified_revision(workspace: Path, prior_workspace: Path, verifier_ch
 
 
 @app.command("generate")
-def render(workspace: Path, segment_ids: str = ""):
+def render(workspace: Path, segment_ids: str = "") -> None:
     """Generate a selected audition or all segments; reuse only verified saved audio."""
     workspace = work_path(workspace)
     import numpy as np
-    import soundfile as sf
+
+    # SoundFile 0.14 annotates this API but ships no py.typed marker (docs/typing-boundaries.md).
+    import soundfile as sf  # pyright: ignore[reportMissingTypeStubs]
     import torch
     from chatterbox.tts import ChatterboxTTS
 
     plan = load_plan(workspace)
-    selected = set(segment_ids.split(",")) if segment_ids else {s["id"] for s in plan["segments"]}
-    if not selected <= {s["id"] for s in plan["segments"]}:
+    selected = set(segment_ids.split(",")) if segment_ids else {s.id for s in plan.segments}
+    if not selected <= {s.id for s in plan.segments}:
         raise ValueError("unknown generation segment")
     pending = [
         s
-        for s in plan["segments"]
-        if s["id"] in selected and verified_segment(workspace, plan, s) is None
+        for s in plan.segments
+        if s.id in selected and verified_segment(workspace, plan, s) is None
     ]
     if not pending:
         typer.echo("all selected segments verified")
         return
-    model = ChatterboxTTS.from_local(plan["model_path"], device=plan["device"])
+    model = ChatterboxTTS.from_local(plan.model_path, device=plan.device)
     builtin = copy.deepcopy(model.conds)
     if builtin is None:
         raise ValueError("model snapshot has no builtin conditioning")
     directory = workspace / "audio"
     directory.mkdir(exist_ok=True)
     for segment in pending:
-        random.seed(segment["seed"])
-        np.random.seed(segment["seed"])
-        torch.manual_seed(segment["seed"])
+        random.seed(segment.seed)
+        np.random.seed(segment.seed)
+        # Upstream torch.random.manual_seed leaves its seed parameter unannotated; segment.seed is int.
+        torch.manual_seed(segment.seed)  # pyright: ignore[reportUnknownMemberType]
         if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(segment["seed"])
-        binding = plan["voices"][segment["voice"]]
+            torch.cuda.manual_seed_all(segment.seed)
+        binding = plan.voices[segment.voice]
         model.conds = copy.deepcopy(builtin)
-        parameters = Parameters.model_validate(segment["parameters"])
+        parameters = segment.parameters
         wav = model.generate(
-            segment["text"],
+            segment.text,
             audio_prompt_path=None if binding == "builtin" else binding,
-            **parameters.model_dump(),
+            exaggeration=parameters.exaggeration,
+            cfg_weight=parameters.cfg_weight,
+            temperature=parameters.temperature,
+            repetition_penalty=parameters.repetition_penalty,
+            min_p=parameters.min_p,
+            top_p=parameters.top_p,
         )
         audio = wav.detach().cpu().numpy().T
-        target = directory / (segment["id"] + ".wav")
+        target = directory / (segment.id + ".wav")
         temporary = target.with_suffix(".tmp.wav")
         sf.write(temporary, audio, model.sr, subtype="FLOAT")
         properties = audio_properties(temporary)
-        if properties["sample_rate"] != model.sr or properties["channels"] != 1:
+        if properties.sample_rate != model.sr or properties.channels != 1:
             raise ValueError("unexpected original Chatterbox audio shape/rate")
         temporary.replace(target)
         atomic(
@@ -681,17 +797,17 @@ def render(workspace: Path, segment_ids: str = ""):
             },
         )
         typer.echo(
-            f"{segment['id']} {segment['speech_id']} {properties['duration_seconds']:.2f}s verified saved audio",
+            f"{segment.id} {segment.speech_id} {properties.duration_seconds:.2f}s verified saved audio",
             err=False,
         )
 
 
 @app.command()
-def status(workspace: Path):
+def status(workspace: Path) -> None:
     """Validate current inputs and every completed generation segment."""
     workspace = work_path(workspace)
     plan = load_plan(workspace)
-    complete = [s["id"] for s in plan["segments"] if verified_segment(workspace, plan, s)]
+    complete = [s.id for s in plan.segments if verified_segment(workspace, plan, s)]
     typer.echo(
-        f'{len(complete)}/{len(plan["segments"])} saved segments verified; audio quality unreviewed'
+        f"{len(complete)}/{len(plan.segments)} saved segments verified; audio quality unreviewed"
     )

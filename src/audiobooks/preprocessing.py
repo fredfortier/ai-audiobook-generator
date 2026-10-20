@@ -54,17 +54,17 @@ def upgrade(version_one: Path, decisions: Path, output: Path) -> None:
     if output.exists():
         raise ValueError("output bundle already exists")
     section_records = TypeAdapter(list[Section]).validate_json(decisions.read_text())
-    if [record.section_id for record in section_records] != manifest["section_ids"]:
+    if [record.section_id for record in section_records] != manifest.section_ids:
         raise ValueError("decision records must cover the version-one section spine in order")
     shutil.copytree(version_one, output)
     section_path = output / "sections.jsonl"
     section_path.write_text("".join(record.model_dump_json() + "\n" for record in section_records))
     revised = {
-        **manifest,
+        **manifest.model_dump(exclude_unset=True),
         "prepared_text_version": 2,
-        "hashes": {**manifest["hashes"], "sections.jsonl": sha256(section_path)},
+        "hashes": {**manifest.hashes, "sections.jsonl": sha256(section_path)},
         "checks": [
-            *manifest.get("checks", []),
+            *manifest.checks,
             "Reviewed explicit sections cover every prepared unit contiguously and bind delivery titles.",
         ],
     }

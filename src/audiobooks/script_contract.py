@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import io
-import json
-from typing import Literal
+from typing import Literal, Self
 
 import panflute as pf
 import pypandoc
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, model_validator
 
 DIALECT = "markdown_strict+fenced_divs+yaml_metadata_block"
 CONTROLS = ("exaggeration", "cfg_weight", "temperature", "repetition_penalty", "min_p", "top_p")
@@ -35,7 +34,7 @@ class Speech(Record):
     heading_level: int | None = Field(default=None, ge=1, le=6)
 
     @model_validator(mode="after")
-    def validate_content(self):
+    def validate_content(self) -> Self:
         if any(not p.strip() for p in self.paragraphs):
             raise ValueError("empty speech paragraph")
         if any(
@@ -58,7 +57,7 @@ class Script(Record):
     speech: list[Speech]
 
     @model_validator(mode="after")
-    def validate_voice_bindings(self):
+    def validate_voice_bindings(self) -> Self:
         ids = [s.id for s in self.speech]
         if len(set(ids)) != len(ids):
             raise ValueError("duplicate speech IDs")
@@ -69,8 +68,8 @@ class Script(Record):
         return self
 
 
-def convert_document(value, input_format, output_format):
-    return pf.convert_text(
+def convert_document(value: str | pf.Doc, input_format: str, output_format: str) -> str:
+    converted = pf.convert_text(
         value,
         input_format=input_format,
         output_format=output_format,
@@ -79,10 +78,14 @@ def convert_document(value, input_format, output_format):
         extra_args=["--fail-if-warnings"] + (["--wrap=none"] if output_format == DIALECT else []),
     )
 
+    if not isinstance(converted, str):
+        raise ValueError("document conversion requires a text output format")
+    return converted
 
-def literal_inlines(text: str):
+
+def literal_inlines(text: str) -> list[pf.Inline]:
     """Preserve punctuation and verse breaks as literal nodes, without reparsing."""
-    nodes = []
+    nodes: list[pf.Inline] = []
     for n, line in enumerate(text.split("\n")):
         if n:
             nodes.append(pf.LineBreak())
@@ -94,7 +97,7 @@ def literal_inlines(text: str):
     return nodes
 
 
-def project_text(element) -> str:
+def project_text(element: pf.Element) -> str:
     if isinstance(element, pf.Str):
         return element.text
     if isinstance(element, (pf.Space, pf.SoftBreak)):
@@ -111,7 +114,7 @@ def project_text(element) -> str:
 
 
 def write_script(script: Script) -> str:
-    blocks = []
+    blocks: list[pf.Block] = []
     for s in script.speech:
         attrs = {"voice": s.voice}
         attrs.update(
@@ -132,16 +135,30 @@ def write_script(script: Script) -> str:
     return convert_document(doc, "panflute", DIALECT)
 
 
-def parse_document(markdown: str):
+def parse_document(markdown: str) -> pf.Doc:
     # Inspect Pandoc attributes before Panflute turns their pairs into a dictionary.
     raw = convert_document(markdown, DIALECT, "json")
-    ast = json.loads(raw)
+    ast: JsonValue = TypeAdapter[JsonValue](JsonValue).validate_json(raw)
 
-    def check_attributes(node):
+    def check_attributes(node: JsonValue) -> None:
         if isinstance(node, dict):
-            if node.get("t") in {"Div", "Span", "Header", "Code", "CodeBlock", "Link", "Image"}:
-                attributes = node["c"][1 if node["t"] == "Header" else 0][2]
-                keys = [pair[0] for pair in attributes]
+            kind = node.get("t")
+            if isinstance(kind, str) and kind in {
+                "Div",
+                "Span",
+                "Header",
+                "Code",
+                "CodeBlock",
+                "Link",
+                "Image",
+            }:
+                content = node["c"]
+                if not isinstance(content, list):
+                    raise ValueError("malformed Pandoc attribute-bearing node")
+                _, _, pairs = TypeAdapter(
+                    tuple[str, list[str], list[tuple[str, str]]]
+                ).validate_python(content[1 if kind == "Header" else 0])
+                keys = [pair[0] for pair in pairs]
                 if len(keys) != len(set(keys)):
                     raise ValueError("duplicate attribute keys")
             for child in node.values():
@@ -154,20 +171,25 @@ def parse_document(markdown: str):
     return pf.load(io.StringIO(raw))
 
 
+class ScriptMetadata(Record):
+    adapt_text_version: int | str
+    title: str
+    engine: Literal["chatterbox-original"]
+    language: Literal["en"]
+    voices: dict[str, str]
+    defaults: dict[str, float | int | str]
+
+
 def read_script(markdown: str) -> Script:
     doc = parse_document(markdown)
     metadata = doc.get_metadata()
     allowed = set(Script.model_fields) - {"speech"}
     if set(metadata) != allowed:
         raise ValueError(f"invalid metadata fields: {set(metadata) ^ allowed}")
-    if isinstance(metadata["adapt_text_version"], bool) or any(
-        isinstance(v, bool) for v in metadata["defaults"].values()
-    ):
-        raise ValueError("version and numeric controls cannot be booleans")
-    metadata["adapt_text_version"] = int(metadata["adapt_text_version"])
-    metadata["defaults"] = {k: float(v) for k, v in metadata["defaults"].items()}
-    defaults = Parameters.model_validate(metadata["defaults"])
-    speech = []
+    fields = ScriptMetadata.model_validate(metadata)
+    version = int(fields.adapt_text_version)
+    defaults = Parameters.model_validate({k: float(v) for k, v in fields.defaults.items()})
+    speech: list[Speech] = []
     for block in doc.content:
         if not isinstance(block, pf.Div) or list(block.classes) != ["speech"]:
             raise ValueError("all audible content must be in flat speech Divs")
@@ -185,7 +207,16 @@ def read_script(markdown: str) -> Script:
                 voice=block.attributes["voice"],
                 parameters=Parameters.model_validate(params),
                 paragraphs=[project_text(paragraph) for paragraph in body],
-                heading_level=body[0].level if heading else None,
+                heading_level=(
+                    body[0].level if len(body) == 1 and isinstance(body[0], pf.Header) else None
+                ),
             )
         )
-    return Script.model_validate({**metadata, "speech": speech})
+    return Script.model_validate(
+        {
+            **fields.model_dump(),
+            "adapt_text_version": version,
+            "defaults": defaults,
+            "speech": speech,
+        }
+    )

@@ -31,7 +31,7 @@ def encode(
 ) -> None:
     """Encode and verify a chaptered AAC/MP4 M4B from lossless assembly."""
     manifest = encode_m4b(assembly_directory, output, bitrate=bitrate, gain_db=gain_db)
-    typer.echo(f"verified {len(manifest['chapters'])} chapters; {manifest['output_hash']}")
+    typer.echo(f"verified {len(manifest.chapters)} chapters; {manifest.output_hash}")
 
 
 @delivery.command("export")

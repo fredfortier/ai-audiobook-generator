@@ -10,6 +10,7 @@ from audiobooks.adaptation import (
     Beat,
     Brief,
     DirectionContext,
+    DirectionLineage,
     DirectorMove,
     Disposition,
     Edit,
@@ -223,7 +224,7 @@ class ActingScoreTest(unittest.TestCase):
         _, _, moves = acting_score_fixture()
         move_fields = moves[0].model_dump()
         with self.assertRaisesRegex(ValidationError, "listener objective"):
-            DirectorMove(**{**move_fields, "objective": "Be mystical."})
+            DirectorMove.model_validate({**move_fields, "objective": "Be mystical."})
 
     def test_directed_beats_derive_vectors_from_actions_and_preserve_lineage(self) -> None:
         unit, brief, moves = acting_score_fixture()
@@ -304,7 +305,7 @@ class ActingScoreTest(unittest.TestCase):
         calibration = Calibration(
             source_script_hashes={}, candidate_script_hashes={}, reasons={"s000001": evidence}
         )
-        directions = {"s000001": {"action": "CLARIFY", "score_move_ids": ["m000001"]}}
+        directions = {"s000001": DirectionLineage(action="CLARIFY", score_move_ids=["m000001"])}
         validate_calibration_provenance(
             calibration, {"s000001"}, directions, {"s000001": proposed}, {"s000001": realized}, True
         )

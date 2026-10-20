@@ -1,10 +1,16 @@
 """Source-preserving English sentence spans from NLTK's supported model."""
 
+from __future__ import annotations
+
 from functools import lru_cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from nltk.tokenize import PunktTokenizer
 
 
 @lru_cache(maxsize=1)
-def _english_tokenizer():
+def _english_tokenizer() -> PunktTokenizer:
     from nltk.tokenize import PunktTokenizer
 
     return PunktTokenizer("english")

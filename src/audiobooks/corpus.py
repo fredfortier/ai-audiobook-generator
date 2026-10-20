@@ -18,15 +18,98 @@ from collections import Counter
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
+from typing import Literal
 
 import ebooklib
 import pypandoc
 import typer
 from lxml import etree
+from pydantic import ConfigDict, Field
 
 from audiobooks.epub_sections import select_sections
 from audiobooks.epub_structure import EpubInventory, NavigationNode, inventory_epub
+from audiobooks.files import json_default
+from audiobooks.script_contract import Record
 from audiobooks.source_units import sha256
+
+type NavigationSignature = tuple[str, str | None, str | None, int, bool | None]
+
+
+class CalibreNode(Record):
+    model_config = ConfigDict(extra="ignore", strict=True)
+    title: str | None = None
+    dest: str | None = None
+    frag: str | None = None
+    dest_exists: bool | None = None
+    children: list[CalibreNode] = Field(default_factory=list)
+
+
+class CalibrePayload(Record):
+    opf_name: str
+    toc: CalibreNode
+
+
+class ComparisonDifference(Record):
+    ordinal: int
+    label_agrees: bool
+    target_agrees: bool
+    level_agrees: bool
+    validity_agrees: bool
+
+
+class CalibreComparison(Record):
+    ours_count: int
+    calibre_count: int
+    signature_hash: str
+    calibre_signature_hash: str
+    differences: list[ComparisonDifference]
+
+
+class PandocDiagnostic(Record):
+    exit_code: int
+    json_created: bool
+
+
+class EpubCheckDiagnostic(Record):
+    exit_code: int
+    fatal_reported: bool
+
+
+class Diagnostics(Record):
+    pandoc: PandocDiagnostic | Literal["skipped"]
+    epubcheck: EpubCheckDiagnostic | Literal["skipped"]
+
+
+class CorpusBook(Record):
+    relative_id: str
+    file_hash: str
+    selected_by_seed: bool
+    deficient_included: bool
+    package_version: str | None
+    spine_items: int
+    nonlinear_spine_items: int
+    navigation_counts: dict[str, int]
+    navigation_relationship: str
+    selected_source: str | None
+    section_selection_source: str | None
+    section_selection_status: str
+    section_boundary_count: int
+    section_issue_classes: list[str]
+    unresolved_resources: int
+    unresolved_fragments: int
+    calibre_error: str | None
+    calibre_comparison: CalibreComparison | None
+    diagnostics: Diagnostics
+
+
+class CorpusReport(Record):
+    acceptance_version: Literal[2]
+    seed: int
+    sample_size: int
+    tools: dict[str, str | None]
+    aggregates: dict[str, int]
+    books: list[CorpusBook]
+
 
 CALIBRE_PROBE = r"""
 from calibre.ebooks.oeb.polish.container import get_container
@@ -52,7 +135,9 @@ def normalized_label(value: str | None) -> str:
 
 
 def private_hash(value: object) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    encoded = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=json_default
+    ).encode()
     return hashlib.sha256(encoded).hexdigest()
 
 
@@ -72,7 +157,7 @@ def selected_nodes(inventory: EpubInventory) -> tuple[str | None, list[Navigatio
     return None, []
 
 
-def node_signature(node: NavigationNode) -> tuple:
+def node_signature(node: NavigationNode) -> NavigationSignature:
     valid = node.resource_exists and (node.fragment is None or node.fragment_exists is True)
     return (
         normalized_label(node.raw_label),
@@ -101,21 +186,21 @@ def navigation_relationship(inventory: EpubInventory) -> str:
     return "material-candidate"
 
 
-def flatten_calibre(root: dict, opf_name: str) -> list[tuple]:
-    flattened: list[tuple] = []
+def flatten_calibre(root: CalibreNode, opf_name: str) -> list[NavigationSignature]:
+    flattened: list[NavigationSignature] = []
 
-    def walk(node: dict, level: int) -> None:
-        for child in node.get("children", []):
-            destination = child.get("dest")
+    def walk(node: CalibreNode, level: int) -> None:
+        for child in node.children:
+            destination = child.dest
             if destination is not None:
                 destination = posixpath.relpath(destination, posixpath.dirname(opf_name) or ".")
             flattened.append(
                 (
-                    normalized_label(child.get("title")),
+                    normalized_label(child.title),
                     destination,
-                    child.get("frag"),
+                    child.frag,
                     level,
-                    child.get("dest_exists"),
+                    child.dest_exists,
                 )
             )
             walk(child, level + 1)
@@ -124,7 +209,7 @@ def flatten_calibre(root: dict, opf_name: str) -> list[tuple]:
     return flattened
 
 
-def calibre_toc(path: Path, temporary: Path) -> tuple[list[tuple] | None, str | None]:
+def calibre_toc(path: Path, temporary: Path) -> tuple[list[NavigationSignature] | None, str | None]:
     output = temporary / (hashlib.sha256(str(path).encode()).hexdigest() + ".json")
     result = subprocess.run(
         ["calibre-debug", "-c", CALIBRE_PROBE, str(path), str(output)],
@@ -134,38 +219,40 @@ def calibre_toc(path: Path, temporary: Path) -> tuple[list[tuple] | None, str | 
     )
     if result.returncode or not output.exists():
         return None, f"exit-{result.returncode}"
-    payload = json.loads(output.read_text())
-    return flatten_calibre(payload["toc"], payload["opf_name"]), None
+    payload = CalibrePayload.model_validate_json(output.read_text())
+    return flatten_calibre(payload.toc, payload.opf_name), None
 
 
-def compare_with_calibre(nodes: list[NavigationNode], calibre: list[tuple]) -> dict:
+def compare_with_calibre(
+    nodes: list[NavigationNode], calibre: list[NavigationSignature]
+) -> CalibreComparison:
     ours = [node_signature(node) for node in nodes]
-    differences: list[dict] = []
+    differences: list[ComparisonDifference] = []
     for index in range(max(len(ours), len(calibre))):
         left = ours[index] if index < len(ours) else None
         right = calibre[index] if index < len(calibre) else None
         if left != right:
             differences.append(
-                {
-                    "ordinal": index + 1,
-                    "label_agrees": bool(left and right and left[0] == right[0]),
-                    "target_agrees": bool(left and right and left[1:3] == right[1:3]),
-                    "level_agrees": bool(left and right and left[3] == right[3]),
-                    "validity_agrees": bool(left and right and left[4] == right[4]),
-                }
+                ComparisonDifference(
+                    ordinal=index + 1,
+                    label_agrees=bool(left and right and left[0] == right[0]),
+                    target_agrees=bool(left and right and left[1:3] == right[1:3]),
+                    level_agrees=bool(left and right and left[3] == right[3]),
+                    validity_agrees=bool(left and right and left[4] == right[4]),
+                )
             )
-    return {
-        "ours_count": len(ours),
-        "calibre_count": len(calibre),
-        "signature_hash": private_hash(ours),
-        "calibre_signature_hash": private_hash(calibre),
-        "differences": differences,
-    }
+    return CalibreComparison(
+        ours_count=len(ours),
+        calibre_count=len(calibre),
+        signature_hash=private_hash(ours),
+        calibre_signature_hash=private_hash(calibre),
+        differences=differences,
+    )
 
 
-def run_diagnostics(path: Path, temporary: Path, run: bool) -> dict:
+def run_diagnostics(path: Path, temporary: Path, run: bool) -> Diagnostics:
     if not run:
-        return {"pandoc": "skipped", "epubcheck": "skipped"}
+        return Diagnostics(pandoc="skipped", epubcheck="skipped")
     pandoc_output = temporary / (hashlib.sha256(str(path).encode()).hexdigest() + ".pandoc.json")
     pandoc = subprocess.run(
         [pypandoc.get_pandoc_path(), str(path), "-t", "json", "-o", str(pandoc_output)],
@@ -177,10 +264,10 @@ def run_diagnostics(path: Path, temporary: Path, run: bool) -> dict:
         ["epubcheck", "-q", str(path)], capture_output=True, text=True, timeout=120
     )
     fatal = bool(re.search(r"\bFATAL\b", epubcheck.stdout + epubcheck.stderr, flags=re.IGNORECASE))
-    return {
-        "pandoc": {"exit_code": pandoc.returncode, "json_created": pandoc_output.exists()},
-        "epubcheck": {"exit_code": epubcheck.returncode, "fatal_reported": fatal},
-    }
+    return Diagnostics(
+        pandoc=PandocDiagnostic(exit_code=pandoc.returncode, json_created=pandoc_output.exists()),
+        epubcheck=EpubCheckDiagnostic(exit_code=epubcheck.returncode, fatal_reported=fatal),
+    )
 
 
 def audit_corpus(
@@ -209,7 +296,7 @@ def audit_corpus(
     deficient = {path for path, inv in inventories.items() if len(selected_nodes(inv)[1]) <= 1}
     seeded = set(Random(seed).sample(paths, sample_size))
     selected = seeded | deficient
-    records: list[dict] = []
+    records: list[CorpusBook] = []
     with TemporaryDirectory() as directory:
         temporary = Path(directory)
         for path in sorted(selected):
@@ -221,89 +308,98 @@ def audit_corpus(
             diagnostics_record = run_diagnostics(path, temporary, diagnostics)
             relative = path.relative_to(corpus).as_posix()
             records.append(
-                {
-                    "relative_id": relative,
-                    "file_hash": sha256(path),
-                    "selected_by_seed": path in seeded,
-                    "deficient_included": path in deficient,
-                    "package_version": inventory.package_version,
-                    "spine_items": len(inventory.spine),
-                    "nonlinear_spine_items": sum(not item.linear for item in inventory.spine),
-                    "navigation_counts": dict(
-                        Counter(node.source for node in inventory.navigation)
-                    ),
-                    "navigation_relationship": navigation_relationship(inventory),
-                    "selected_source": source,
-                    "section_selection_source": selection.primary_source,
-                    "section_selection_status": selection.status,
-                    "section_boundary_count": len(selection.boundaries),
-                    "section_issue_classes": sorted(
-                        {issue.split(":", 1)[0] for issue in selection.issues}
-                    ),
-                    "unresolved_resources": sum(
-                        node.raw_target is not None and not node.resource_exists
-                        for node in inventory.navigation
-                    ),
-                    "unresolved_fragments": sum(
-                        node.fragment is not None and node.fragment_exists is False
-                        for node in inventory.navigation
-                    ),
-                    "calibre_error": calibre_error,
-                    "calibre_comparison": comparison,
-                    "diagnostics": diagnostics_record,
-                }
+                CorpusBook.model_validate(
+                    {
+                        "relative_id": relative,
+                        "file_hash": sha256(path),
+                        "selected_by_seed": path in seeded,
+                        "deficient_included": path in deficient,
+                        "package_version": inventory.package_version,
+                        "spine_items": len(inventory.spine),
+                        "nonlinear_spine_items": sum(not item.linear for item in inventory.spine),
+                        "navigation_counts": dict(
+                            Counter(node.source for node in inventory.navigation)
+                        ),
+                        "navigation_relationship": navigation_relationship(inventory),
+                        "selected_source": source,
+                        "section_selection_source": selection.primary_source,
+                        "section_selection_status": selection.status,
+                        "section_boundary_count": len(selection.boundaries),
+                        "section_issue_classes": sorted(
+                            {issue.split(":", 1)[0] for issue in selection.issues}
+                        ),
+                        "unresolved_resources": sum(
+                            node.raw_target is not None and not node.resource_exists
+                            for node in inventory.navigation
+                        ),
+                        "unresolved_fragments": sum(
+                            node.fragment is not None and node.fragment_exists is False
+                            for node in inventory.navigation
+                        ),
+                        "calibre_error": calibre_error,
+                        "calibre_comparison": comparison,
+                        "diagnostics": diagnostics_record,
+                    }
+                )
             )
-    aggregates = {
+    aggregates: dict[str, int] = {
         "corpus_books": len(paths),
         "selected_books": len(records),
         "deficient_books": len(deficient),
-        "calibre_failures": sum(record["calibre_error"] is not None for record in records),
+        "calibre_failures": sum(record.calibre_error is not None for record in records),
         "calibre_discrepancy_books": sum(
-            bool(record["calibre_comparison"] and record["calibre_comparison"]["differences"])
+            bool(record.calibre_comparison and record.calibre_comparison.differences)
             for record in records
         ),
         "material_nav_ncx_candidates": sum(
-            record["navigation_relationship"] == "material-candidate" for record in records
+            record.navigation_relationship == "material-candidate" for record in records
         ),
         "fallback_selection_books": sum(
-            record["section_selection_source"] == "content-structure" for record in records
+            record.section_selection_source == "content-structure" for record in records
         ),
         "blocked_admissions": sum(
-            record["section_selection_status"] == "blocked" for record in records
+            record.section_selection_status == "blocked" for record in records
         ),
-        "unresolved_resources": sum(record["unresolved_resources"] for record in records),
-        "unresolved_fragments": sum(record["unresolved_fragments"] for record in records),
+        "unresolved_resources": sum(record.unresolved_resources for record in records),
+        "unresolved_fragments": sum(record.unresolved_fragments for record in records),
         "pandoc_failures": sum(
-            record["diagnostics"]["pandoc"] != "skipped"
-            and record["diagnostics"]["pandoc"]["exit_code"] != 0
+            isinstance(record.diagnostics.pandoc, PandocDiagnostic)
+            and record.diagnostics.pandoc.exit_code != 0
             for record in records
         ),
         "epubcheck_nonzero_books": sum(
-            record["diagnostics"]["epubcheck"] != "skipped"
-            and record["diagnostics"]["epubcheck"]["exit_code"] != 0
+            isinstance(record.diagnostics.epubcheck, EpubCheckDiagnostic)
+            and record.diagnostics.epubcheck.exit_code != 0
             for record in records
         ),
         "epubcheck_fatal_books": sum(
-            record["diagnostics"]["epubcheck"] != "skipped"
-            and record["diagnostics"]["epubcheck"]["fatal_reported"]
+            isinstance(record.diagnostics.epubcheck, EpubCheckDiagnostic)
+            and record.diagnostics.epubcheck.fatal_reported
             for record in records
         ),
     }
-    report = {
-        "acceptance_version": 2,
-        "seed": seed,
-        "sample_size": sample_size,
-        "tools": {
-            "ebooklib": ".".join(map(str, ebooklib.VERSION)),
-            "lxml": ".".join(map(str, etree.LXML_VERSION)),
-            "pandoc": pypandoc.get_pandoc_version(),
-            "calibre": calibre_version,
-            "epubcheck": epubcheck_version,
-            "readium": "unavailable-not-run",
-        },
-        "aggregates": aggregates,
-        "books": records,
-    }
+    report = CorpusReport.model_validate(
+        {
+            "acceptance_version": 2,
+            "seed": seed,
+            "sample_size": sample_size,
+            "tools": {
+                "ebooklib": ".".join(map(str, ebooklib.VERSION)),
+                "lxml": ".".join(map(str, etree.LXML_VERSION)),
+                "pandoc": pypandoc.get_pandoc_version(),
+                "calibre": calibre_version,
+                "epubcheck": epubcheck_version,
+                "readium": "unavailable-not-run",
+            },
+            "aggregates": aggregates,
+            "books": records,
+        }
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    output.write_text(
+        json.dumps(
+            report.model_dump(exclude_unset=True), ensure_ascii=False, indent=2, sort_keys=True
+        )
+        + "\n"
+    )
     typer.echo(json.dumps(aggregates, sort_keys=True))

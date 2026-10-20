@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Literal
 
 import panflute as pf
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
+from audiobooks.files import json_default
 from audiobooks.script_contract import Record, parse_document, project_text
 
 
@@ -20,8 +21,43 @@ def sha256(path: Path) -> str:
 
 def identity(value: object) -> str:
     return hashlib.sha256(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=json_default
+        ).encode()
     ).hexdigest()
+
+
+class PreparedManifest(Record):
+    # Source provenance is extensible; preserve edition-specific fields in hashes.
+    model_config = ConfigDict(extra="allow", strict=True)
+    prepared_text_version: int
+    admission: str
+    title: str
+    author: str | None = None
+    scope: str
+    section_ids: list[str]
+    hashes: dict[str, str]
+    original_file_hashes: dict[str, str]
+    checks: list[str] = Field(default_factory=list)
+
+
+class Page(Record):
+    id: str
+    section_id: str
+    unit_ids: list[str]
+    words: int
+
+
+class Batch(Page):
+    page_ids: list[str]
+
+
+class AdaptationPlan(Record):
+    plan_version: int
+    max_batch_pages: int | None = None
+    max_batch_words: int | None = None
+    pages: list[Page]
+    batches: list[Batch]
 
 
 class Unit(Record):
@@ -206,11 +242,11 @@ def project_section_titles(
     return projected, projected_sections
 
 
-def sections(bundle: Path, manifest: dict, units: list[Unit]) -> list[Section]:
-    if manifest.get("prepared_text_version") != 2:
+def sections(bundle: Path, manifest: PreparedManifest, units: list[Unit]) -> list[Section]:
+    if manifest.prepared_text_version != 2:
         raise ValueError("prepared bundle has no explicit section contract; migrate version one")
     path = bundle / "sections.jsonl"
-    if sha256(path) != manifest["hashes"].get("sections.jsonl"):
+    if sha256(path) != manifest.hashes.get("sections.jsonl"):
         raise ValueError("changed prepared file: sections.jsonl")
     result = [Section.model_validate_json(line) for line in path.read_text().splitlines()]
     if not result or [section.ordinal for section in result] != list(range(1, len(result) + 1)):
@@ -218,7 +254,7 @@ def sections(bundle: Path, manifest: dict, units: list[Unit]) -> list[Section]:
     if len({section.section_id for section in result}) != len(result):
         raise ValueError("duplicate section IDs")
     ids = [section.section_id for section in result]
-    if ids != manifest["section_ids"]:
+    if ids != manifest.section_ids:
         raise ValueError("section records differ from manifest spine")
     by_id = {unit.id: unit for unit in units}
     first_units: dict[str, str] = {}
@@ -249,20 +285,20 @@ def sections(bundle: Path, manifest: dict, units: list[Unit]) -> list[Section]:
     return result
 
 
-def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list[Unit]]:
-    manifest = json.loads((bundle / "manifest.json").read_text())
-    version = manifest.get("prepared_text_version")
-    if version not in (1, 2) or manifest.get("admission") != "ready":
+def admit(bundle: Path, required_version: int | None = None) -> tuple[PreparedManifest, list[Unit]]:
+    manifest = PreparedManifest.model_validate_json((bundle / "manifest.json").read_text())
+    version = manifest.prepared_text_version
+    if version not in (1, 2) or manifest.admission != "ready":
         raise ValueError("prepared bundle is not an admitted supported version")
     if required_version is not None and version != required_version:
         if required_version == 2 and version == 1:
             raise ValueError("prepared version one lacks sections.jsonl; migrate to version two")
         raise ValueError(f"prepared version {required_version} required")
-    hashes = manifest["hashes"]
+    hashes = manifest.hashes
     for name in ("prepared.md", "units.jsonl"):
         if sha256(bundle / name) != hashes[name]:
             raise ValueError(f"changed prepared file: {name}")
-    originals = manifest["original_file_hashes"]
+    originals = manifest.original_file_hashes
     if not originals:
         raise ValueError("missing retained witness")
     for name, digest in originals.items():
@@ -279,9 +315,9 @@ def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list
     if len({u.id for u in units}) != len(units):
         raise ValueError("duplicate source unit IDs")
     section_ids = list(dict.fromkeys(u.section_id for u in units))
-    if section_ids != manifest["section_ids"]:
+    if section_ids != manifest.section_ids:
         raise ValueError("section spine differs from source inventory")
-    closed = set()
+    closed: set[str] = set()
     previous = None
     for u in units:
         if u.section_id != previous:
@@ -312,6 +348,8 @@ def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list
         if len(body) != 1 or not isinstance(body[0], expected):
             raise ValueError(f"source kind differs: {unit.id}")
         if unit.kind == "heading":
+            if not isinstance(body[0], pf.Header):
+                raise ValueError(f"source kind differs: {unit.id}")
             if unit.heading_level is not None and unit.heading_level != body[0].level:
                 raise ValueError(f"heading hierarchy differs: {unit.id}")
             unit.heading_level = body[0].level
@@ -324,52 +362,45 @@ def admit(bundle: Path, required_version: int | None = None) -> tuple[dict, list
     return manifest, units
 
 
-def partition(units: list[Unit], *, max_batch_pages: int = 10, max_batch_words: int = 6000) -> dict:
+def partition(
+    units: list[Unit], *, max_batch_pages: int = 10, max_batch_words: int = 6000
+) -> AdaptationPlan:
     if max_batch_pages < 1 or max_batch_words < 1:
         raise ValueError("positive batch limits required")
-    pages = []
+    pages: list[Page] = []
     for unit in units:
         words = len(unit.prepared_text.split())
-        if (
-            not pages
-            or pages[-1]["section_id"] != unit.section_id
-            or pages[-1]["words"] + words > 600
-        ):
+        if not pages or pages[-1].section_id != unit.section_id or pages[-1].words + words > 600:
             pages.append(
-                {
-                    "id": f"wp{len(pages)+1:06d}",
-                    "section_id": unit.section_id,
-                    "unit_ids": [],
-                    "words": 0,
-                }
+                Page(id=f"wp{len(pages)+1:06d}", section_id=unit.section_id, unit_ids=[], words=0)
             )
-        pages[-1]["unit_ids"].append(unit.id)
-        pages[-1]["words"] += words
-    batches = []
+        pages[-1].unit_ids.append(unit.id)
+        pages[-1].words += words
+    batches: list[Batch] = []
     for page in pages:
         if (
             not batches
-            or batches[-1]["section_id"] != page["section_id"]
-            or len(batches[-1]["page_ids"]) >= max_batch_pages
-            or batches[-1]["words"] + page["words"] > max_batch_words
+            or batches[-1].section_id != page.section_id
+            or len(batches[-1].page_ids) >= max_batch_pages
+            or batches[-1].words + page.words > max_batch_words
         ):
             batches.append(
-                {
-                    "id": f"b{len(batches)+1:06d}",
-                    "section_id": page["section_id"],
-                    "page_ids": [],
-                    "unit_ids": [],
-                    "words": 0,
-                }
+                Batch(
+                    id=f"b{len(batches)+1:06d}",
+                    section_id=page.section_id,
+                    page_ids=[],
+                    unit_ids=[],
+                    words=0,
+                )
             )
         batch = batches[-1]
-        batch["page_ids"].append(page["id"])
-        batch["unit_ids"].extend(page["unit_ids"])
-        batch["words"] += page["words"]
-    return {
-        "plan_version": 2,
-        "max_batch_pages": max_batch_pages,
-        "max_batch_words": max_batch_words,
-        "pages": pages,
-        "batches": batches,
-    }
+        batch.page_ids.append(page.id)
+        batch.unit_ids.extend(page.unit_ids)
+        batch.words += page.words
+    return AdaptationPlan(
+        plan_version=2,
+        max_batch_pages=max_batch_pages,
+        max_batch_words=max_batch_words,
+        pages=pages,
+        batches=batches,
+    )

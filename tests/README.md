@@ -156,5 +156,6 @@ subject to their existing runtime-identity guards; verification imports do not b
 `.github/workflows/python-checks.yml` runs four independent, fail-fast-disabled matrix jobs using
 uv, Python 3.13, and `uv sync --locked`: pytest, strict Basedpyright, Ruff, and Black. Only tests
 install FFmpeg; no model download or GPU synthesis is required by this suite. Action references
-are pinned to verified release commits. The strict typing backlog remains a visible failing gate;
-it is not suppressed to make the pipeline green.
+are pinned to verified release commits. All four checks must pass. Strict typing covers both
+application code and tests; the external typing boundaries and narrowly scoped exceptions are
+documented in [typing-boundaries.md](../docs/typing-boundaries.md).

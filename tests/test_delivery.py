@@ -8,13 +8,24 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import numpy as np
-import soundfile as sf
+
+# SoundFile 0.14 annotates this API but ships no py.typed marker (docs/typing-boundaries.md).
+import soundfile as sf  # pyright: ignore[reportMissingTypeStubs]
 
 from audiobooks import delivery
 from audiobooks.assembly import assemble, reviewed_chapter_titles
 from audiobooks.delivery import encode_m4b
-from audiobooks.rendering import audio_properties, generation_identity, runtime_hashes
+from audiobooks.files import json_default, write_atomic
+from audiobooks.rendering import (
+    ChapterSource,
+    RenderPlan,
+    RenderSegment,
+    audio_properties,
+    generation_identity,
+    runtime_hashes,
+)
 from audiobooks.source_units import identity, sha256
+from tests.test_acting_score import DEFAULT_PARAMETERS
 
 
 def write_delivery(
@@ -54,12 +65,27 @@ class DeliveryTest(unittest.TestCase):
                 "plausibility": "Only case changes; all authored wording remains.",
             }
             review.write_text(json.dumps({"style": "English title case", "chapters": [entry]}))
-            self.assertEqual(reviewed_chapter_titles(plan, review)["letter"].title, entry["title"])
+            self.assertEqual(
+                reviewed_chapter_titles(
+                    [
+                        ChapterSource.model_validate(chapter)
+                        for chapter in plan["delivery_sections"]
+                    ],
+                    review,
+                )["letter"].title,
+                entry["title"],
+            )
 
             entry["title"] = "Man Is Spirit. the Spirit of the Lover Is in the Beloved"
             review.write_text(json.dumps({"style": "English title case", "chapters": [entry]}))
             with self.assertRaisesRegex(ValueError, "consistent English title case"):
-                reviewed_chapter_titles(plan, review)
+                reviewed_chapter_titles(
+                    [
+                        ChapterSource.model_validate(chapter)
+                        for chapter in plan["delivery_sections"]
+                    ],
+                    review,
+                )
 
     def test_chapter_title_review_rejects_inconsistent_minor_word_casing(self) -> None:
         with TemporaryDirectory() as directory:
@@ -90,7 +116,13 @@ class DeliveryTest(unittest.TestCase):
             }
 
             with self.assertRaisesRegex(ValueError, "consistent English title case"):
-                reviewed_chapter_titles(plan, review)
+                reviewed_chapter_titles(
+                    [
+                        ChapterSource.model_validate(chapter)
+                        for chapter in plan["delivery_sections"]
+                    ],
+                    review,
+                )
 
     def test_chapter_title_review_requires_contextual_evidence(self) -> None:
         with TemporaryDirectory() as directory:
@@ -121,7 +153,13 @@ class DeliveryTest(unittest.TestCase):
             }
 
             with self.assertRaisesRegex(ValueError, "contextual evidence"):
-                reviewed_chapter_titles(plan, review)
+                reviewed_chapter_titles(
+                    [
+                        ChapterSource.model_validate(chapter)
+                        for chapter in plan["delivery_sections"]
+                    ],
+                    review,
+                )
 
     def test_export_requires_configured_directory(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -195,61 +233,68 @@ class DeliveryTest(unittest.TestCase):
             audio_directory = workspace / "audio"
             audio_directory.mkdir(parents=True)
             sample_rate = 24000
-            segment_definitions = [
+            segment_definitions: list[tuple[str, str, str, int]] = [
                 ("g000001", "s000001", "OPENING", 1),
                 ("g000002", "s000002", "Subsection", 2),
                 ("g000003", "s000003", "CHAPTER TWO", 1),
                 ("g000004", "s000004", "CLOSING", 1),
             ]
             segments = [
-                {
-                    "id": segment_id,
-                    "script": "script/0001.md",
-                    "speech_id": speech_id,
-                    "paragraph": 0,
-                    "start": 0,
-                    "end": len(text),
-                    "text": text,
-                    "native_text": text,
-                    "native_tokens": len(text),
-                    "voice": "narrator",
-                    "parameters": {},
-                    "seed": index,
-                    "heading_level": heading_level,
-                }
+                RenderSegment.model_validate(
+                    {
+                        "id": segment_id,
+                        "script": "script/0001.md",
+                        "speech_id": speech_id,
+                        "paragraph": 0,
+                        "start": 0,
+                        "end": len(text),
+                        "text": text,
+                        "native_text": text,
+                        "native_tokens": len(text),
+                        "voice": "narrator",
+                        "parameters": DEFAULT_PARAMETERS,
+                        "seed": index,
+                        "heading_level": heading_level,
+                    }
+                )
                 for index, (segment_id, speech_id, text, heading_level) in enumerate(
                     segment_definitions
                 )
             ]
-            plan = {
-                "render_version": 1,
-                "title": "Synthetic Book",
-                "author": "Fixture Author",
-                "runtime_hashes": runtime_hashes(),
-                "input_hashes": {},
-                "segments": segments,
-                "delivery_sections": [
-                    {
-                        "section_id": "one",
-                        "title": "OPENING",
-                        "title_speech_id": "s000001",
-                        "start_segment_id": "g000001",
-                    },
-                    {
-                        "section_id": "two",
-                        "title": "CHAPTER TWO",
-                        "title_speech_id": "s000003",
-                        "start_segment_id": "g000003",
-                    },
-                    {
-                        "section_id": "three",
-                        "title": "CLOSING",
-                        "title_speech_id": "s000004",
-                        "start_segment_id": "g000004",
-                    },
-                ],
-            }
-            (workspace / "plan.json").write_text(json.dumps(plan))
+            plan = RenderPlan.model_validate(
+                {
+                    "render_version": 1,
+                    "model_path": str(root / "model"),
+                    "device": "cpu",
+                    "voices": {"narrator": "builtin"},
+                    "title": "Synthetic Book",
+                    "author": "Fixture Author",
+                    "runtime_hashes": runtime_hashes(),
+                    "input_hashes": {},
+                    "segments": segments,
+                    "delivery_sections": [
+                        {
+                            "section_id": "one",
+                            "title": "OPENING",
+                            "title_speech_id": "s000001",
+                            "start_segment_id": "g000001",
+                        },
+                        {
+                            "section_id": "two",
+                            "title": "CHAPTER TWO",
+                            "title_speech_id": "s000003",
+                            "start_segment_id": "g000003",
+                        },
+                        {
+                            "section_id": "three",
+                            "title": "CLOSING",
+                            "title_speech_id": "s000004",
+                            "start_segment_id": "g000004",
+                        },
+                    ],
+                }
+            )
+            write_atomic(workspace / "plan.json", plan)
             (workspace / "manifest.json").write_text(json.dumps({"plan_hash": identity(plan)}))
             for index, segment in enumerate(segments, 1):
                 frames = sample_rate // 4
@@ -257,14 +302,14 @@ class DeliveryTest(unittest.TestCase):
                 audio = (0.05 * np.sin(2 * np.pi * (200 + index * 20) * sample_times)).astype(
                     np.float32
                 )
-                path = audio_directory / f"{segment['id']}.wav"
+                path = audio_directory / f"{segment.id}.wav"
                 sf.write(path, audio, sample_rate, format="WAV", subtype="FLOAT")
                 record = {
                     "generation_hash": generation_identity(plan, segment),
                     "audio_hash": sha256(path),
                     "properties": audio_properties(path),
                 }
-                path.with_suffix(".json").write_text(json.dumps(record))
+                path.with_suffix(".json").write_text(json.dumps(record, default=json_default))
             gaps = root / "gaps.json"
             gaps.write_text("[]\n")
             chapter_titles = root / "chapter-titles.json"
@@ -315,10 +360,10 @@ class DeliveryTest(unittest.TestCase):
             output = root / "synthetic.m4b"
             manifest = encode_m4b(assembly, output, bitrate="64k", gain_db=-1.0)
             self.assertTrue(output.is_file())
-            self.assertTrue(manifest["verification_passed"])
+            self.assertTrue(manifest.verification_passed)
             self.assertEqual(
-                [chapter["title"] for chapter in manifest["chapters"]],
+                [chapter.title for chapter in manifest.chapters],
                 ["Opening", "Chapter Two", "Closing"],
             )
-            self.assertEqual(manifest["probe"]["streams"][0]["codec_name"], "aac")
-            self.assertEqual(manifest["input_audio_hash"], assembly_record["audio_hash"])
+            self.assertEqual(manifest.probe.streams[0].codec_name, "aac")
+            self.assertEqual(manifest.input_audio_hash, assembly_record["audio_hash"])

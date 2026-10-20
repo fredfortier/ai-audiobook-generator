@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 from audiobooks.epub_sections import CalibreCandidate, select_sections, structural_candidates
-from audiobooks.epub_structure import inventory_epub
+from audiobooks.epub_structure import EpubInventory, inventory_epub
 
 CONTAINER_XML = """<?xml version="1.0"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -89,11 +89,28 @@ def ncx_entry(label: str, fragment: str, nested: str = "") -> str:
 
 
 class EpubSectionSelectionTest(unittest.TestCase):
-    def create_epub(self, **kwargs):
+    def create_epub(
+        self,
+        *,
+        body: str,
+        nav_entries: str = "",
+        ncx_entries: str = "",
+        version: str = "3.0",
+        extra_resource: bool = False,
+        second_body: str | None = None,
+    ) -> tuple[Path, EpubInventory]:
         temporary = TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         path = Path(temporary.name) / "fixture.epub"
-        write_epub(path, **kwargs)
+        write_epub(
+            path,
+            body=body,
+            nav_entries=nav_entries,
+            ncx_entries=ncx_entries,
+            version=version,
+            extra_resource=extra_resource,
+            second_body=second_body,
+        )
         return path, inventory_epub(path)
 
     def test_agreeing_nav_ncx_many_fragments_and_navigation_projection(self) -> None:

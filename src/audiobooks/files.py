@@ -6,12 +6,13 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 
-def read_json(path: Path) -> Any:
+def read_json(path: Path) -> JsonValue:
     """Read a UTF-8 JSON document from ``path``."""
-    return json.loads(path.read_text(encoding="utf-8"))
+    return TypeAdapter[JsonValue](JsonValue).validate_json(path.read_text(encoding="utf-8"))
 
 
 def write_atomic(path: Path, content: object) -> None:
@@ -20,7 +21,7 @@ def write_atomic(path: Path, content: object) -> None:
     text = (
         content
         if isinstance(content, str)
-        else json.dumps(content, ensure_ascii=False, indent=2) + "\n"
+        else json.dumps(content, ensure_ascii=False, indent=2, default=json_default) + "\n"
     )
     descriptor, temporary_path = tempfile.mkstemp(prefix="." + path.name, dir=path.parent)
     try:
@@ -32,3 +33,10 @@ def write_atomic(path: Path, content: object) -> None:
     finally:
         if os.path.exists(temporary_path):
             os.unlink(temporary_path)
+
+
+def json_default(value: object) -> object:
+    """Serialize declared records without inventing absent optional persisted fields."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(exclude_unset=True)
+    raise TypeError(f"not JSON serializable: {type(value).__name__}")

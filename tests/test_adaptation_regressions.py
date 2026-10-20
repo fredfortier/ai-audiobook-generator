@@ -18,6 +18,7 @@ from audiobooks.adaptation import (
     Rule,
     ScoreDraft,
     ScoreReview,
+    WorkerPacket,
     accept,
     accept_score,
     check_score_moves,
@@ -46,25 +47,34 @@ def test_score_rejects_interleaved_units() -> None:
 
 def test_directed_fragment_preserves_accepted_move_lineage(tmp_path: Path) -> None:
     unit, brief, moves = acting_score_fixture()
-    packet = {
-        "batch_id": "b000001",
-        "attempt_id": "attempt",
-        "prepared_hash": "prepared",
-        "plan_hash": "plan",
-        "configuration_hash": "configuration",
-        "brief_hash": "brief",
-        "acting_score_hash": "score",
-        "predecessor_hash": "section-start",
-        "fragment_plan_hash": "fragment-plan",
-        "fragments": [{"id": "f000001", "start": 0, "end": 10}],
-        "owned_units": [unit.model_dump()],
-        "acting_score_moves": [move.model_dump() for move in moves],
-    }
+    packet = WorkerPacket.model_validate(
+        {
+            "batch_id": "b000001",
+            "attempt_id": "attempt",
+            "prepared_hash": "prepared",
+            "plan_hash": "plan",
+            "configuration_hash": "configuration",
+            "brief_hash": "brief",
+            "acting_score_hash": "score",
+            "predecessor_hash": "section-start",
+            "fragment_plan_hash": "fragment-plan",
+            "fragments": [{"id": "f000001", "start": 0, "end": 10}],
+            "owned_units": [unit.model_dump()],
+            "acting_score_moves": [move.model_dump() for move in moves],
+        }
+    )
     path, draft = fragment_paths(tmp_path, packet, "f000001")
-    write_atomic(path, {**packet, "fragment_predecessor_hash": "fragment-start"})
+    write_atomic(
+        path,
+        {**packet.model_dump(exclude_unset=True), "fragment_predecessor_hash": "fragment-start"},
+    )
     result = Result.model_validate(
         {
-            **{key: packet[key] for key in Result.model_fields if key in packet},
+            **{
+                key: packet.model_dump()[key]
+                for key in Result.model_fields
+                if key in packet.model_dump()
+            },
             "units": [
                 Disposition(
                     id=unit.id,
@@ -122,8 +132,8 @@ def test_directed_revision_does_not_freeze_old_score_moves(tmp_path: Path) -> No
             **template.model_dump(),
             "prepared_source_hash": identity(manifest),
             "survey_unit_ids": [unit.id for unit in narrated],
-            "section_baselines": {section: None for section in manifest["section_ids"]},
-            "section_dependencies": {section: [] for section in manifest["section_ids"]},
+            "section_baselines": {section: None for section in manifest.section_ids},
+            "section_dependencies": {section: [] for section in manifest.section_ids},
             "rules": [
                 Rule(
                     id="literal-digits",
@@ -187,9 +197,9 @@ def test_directed_revision_does_not_freeze_old_score_moves(tmp_path: Path) -> No
     )
     task(original, batch["id"], fragment_boundaries=None, owned_word_budget=6000)
     active = json.loads((original / "tasks" / batch["id"] / "active.json").read_text())
-    packet = json.loads(Path(active["packet_path"]).read_text())
+    packet = WorkerPacket.model_validate_json(Path(active["packet_path"]).read_text())
     owned = [unit for unit in narrated if unit.id in batch["unit_ids"]]
-    dispositions = []
+    dispositions: list[Disposition] = []
     for unit in owned:
         text = unit.prepared_text
         for start, end in reversed(unit.note_call_spans):
@@ -226,13 +236,17 @@ def test_directed_revision_does_not_freeze_old_score_moves(tmp_path: Path) -> No
         )
     result = Result.model_validate(
         {
-            **{key: packet[key] for key in Result.model_fields if key in packet},
+            **{
+                key: packet.model_dump()[key]
+                for key in Result.model_fields
+                if key in packet.model_dump()
+            },
             "units": [item.model_dump() for item in dispositions],
             "continuity": "The reviewed section is complete.",
             "issues": [],
         }
     )
-    draft = Path(packet["draft_path"])
+    draft = Path(packet.draft_path)
     write_atomic(draft, result.model_dump())
     review = tmp_path / "review.json"
     write_atomic(

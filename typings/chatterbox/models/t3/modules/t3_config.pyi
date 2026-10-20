@@ -1,0 +1,3 @@
+class T3Config:
+    max_text_tokens: int
+    def __init__(self, text_tokens_dict_size: int = 704) -> None: ...

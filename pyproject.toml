@@ -43,6 +43,7 @@ dev = [
     "black>=26.10.1",
     "pytest>=9.1.1",
     "ruff>=0.17.1",
+    "types-lxml>=2026.2.16",
 ]
 
 [tool.pytest.ini_options]
@@ -64,3 +65,4 @@ select = ["E4", "E7", "E9", "F", "I", "B009", "B010", "RUF059"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 include = ["src", "tests"]
+reportUnnecessaryTypeIgnoreComment = "error"

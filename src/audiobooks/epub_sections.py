@@ -16,6 +16,9 @@ from typing import Literal
 
 from ebooklib import epub
 from lxml import etree
+
+# lxml documents _Element as its concrete element API; the leading underscore is upstream naming.
+from lxml.etree import _Element as Element  # pyright: ignore[reportPrivateUsage]
 from pydantic import Field
 
 from audiobooks.epub_structure import EpubInventory, NavigationNode, NavigationSource
@@ -247,7 +250,7 @@ def _coalesce_stacked_boundaries(
     return selected, stacks, issues
 
 
-def _element_text(node: etree._Element | None) -> str | None:
+def _element_text(node: Element | None) -> str | None:
     if node is None:
         return None
     value = _whitespace_pattern.sub(" ", "".join(node.itertext())).strip()
@@ -266,7 +269,7 @@ def structural_candidates(path: Path, inventory: EpubInventory) -> list[Structur
         if item is None:
             continue
         root = etree.fromstring(
-            item.get_content(),
+            item.get_content() or b"",
             parser=etree.XMLParser(recover=True, resolve_entities=False, no_network=True),
         )
         elements = [node for node in root.iter() if isinstance(node.tag, str)]
@@ -421,7 +424,7 @@ def select_sections(
         candidate_cache = structural_candidates(epub_path, inventory)
         if sum(candidate.selected for candidate in candidate_cache) > len(primary):
             primary_name, primary = None, []
-    if primary:
+    if primary and primary_name is not None:
         issues.extend(_compare_sources(primary, secondary))
         resolution_issues, fallback_positions = _resolve_navigation_positions(primary)
         issues.extend(resolution_issues)
@@ -471,7 +474,9 @@ def select_sections(
             parent_id = node.parent_id
             while parent_id is not None and parent_id not in section_by_node:
                 parent_id = all_by_id[parent_id].parent_id if parent_id in all_by_id else None
-            boundary.parent_section_id = section_by_node.get(parent_id)
+            boundary.parent_section_id = (
+                section_by_node.get(parent_id) if parent_id is not None else None
+            )
             for stacked in stacks.get(node.id, []):
                 if stacked.id != node.id:
                     boundary.evidence.append(

@@ -363,6 +363,9 @@ exposes `audiobooks`; skills call its subcommands through the same locked uv env
 Use `uv run --project /absolute/path/to/plugin --locked audiobooks …` from another directory.
 Each production stage retains its explicit review and acceptance boundary.
 
+Strict typing covers application code and tests. [External typing boundaries](docs/typing-boundaries.md)
+records the installed-source evidence for bundled dependency stubs and each inline exception.
+
 The current proving work is Thomas Taylor's Plotinus essay, *Concerning the Beautiful*. It exercises
 source admission, rhetorical direction, paragraph-preserving adaptation, original Chatterbox
 generation, lossless assembly, M4B chapters, recovery, and evidence-bound export. That completed

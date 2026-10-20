@@ -9,15 +9,26 @@ import uuid
 from difflib import SequenceMatcher
 from itertools import groupby
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 import typer
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, TypeAdapter, model_validator
 
 from audiobooks.files import read_json, write_atomic
 from audiobooks.script_contract import Parameters, Record, Script, Speech, read_script, write_script
 from audiobooks.sentences import sentence_spans
-from audiobooks.source_units import Unit, admit, identity, partition, sections, sha256
+from audiobooks.source_units import (
+    AdaptationPlan,
+    Batch,
+    PreparedManifest,
+    Section,
+    Unit,
+    admit,
+    identity,
+    partition,
+    sections,
+    sha256,
+)
 from audiobooks.workspaces import work_path
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
@@ -110,12 +121,11 @@ ACTION_PARAMETERS: dict[Action, Parameters] = {
 }
 
 
-def action_registry():
+def action_registry() -> dict[Action, ActionDefinition]:
     return {
-        action: {
-            "meaning": ACTION_MEANINGS[action],
-            "parameters": ACTION_PARAMETERS[action].model_dump(),
-        }
+        action: ActionDefinition(
+            meaning=ACTION_MEANINGS[action], parameters=ACTION_PARAMETERS[action]
+        )
         for action in ACTION_MEANINGS
     }
 
@@ -138,7 +148,7 @@ class DirectionContext(Record):
     user_cues: list[ProductionCue] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_unique_cues(self):
+    def validate_unique_cues(self) -> Self:
         if len({cue.id for cue in self.user_cues}) != len(self.user_cues):
             raise ValueError("duplicate user cue IDs")
         return self
@@ -169,7 +179,7 @@ class Brief(Record):
     direction: DirectionContext | None = None
 
     @model_validator(mode="after")
-    def validate_complete_brief(self):
+    def validate_complete_brief(self) -> Self:
         if self.narrator not in self.voices:
             raise ValueError("narrator must have a binding")
         if self.direction is None:
@@ -204,7 +214,7 @@ class Beat(Record):
     score_move_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_control_identity(self):
+    def validate_control_identity(self) -> Self:
         if (self.action is None) == (self.choice is None):
             raise ValueError("beat requires exactly one action or legacy choice")
         return self
@@ -263,7 +273,7 @@ class DirectorMove(Record):
     textual_evidence: str = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_listener_objective(self):
+    def validate_listener_objective(self) -> Self:
         prefix = f"{self.action} the listener to "
         if not (
             self.objective.startswith(prefix)
@@ -306,8 +316,140 @@ class ActingScore(Record):
     moves: list[DirectorMove] = Field(min_length=1)
 
 
+class Document(Record):
+    # Persist agent-facing schema/reference metadata as supplied, while typing consumed fields.
+    model_config = ConfigDict(extra="allow", strict=True)
+
+
+class ActionDefinition(Record):
+    meaning: str
+    parameters: Parameters
+
+
+class AdaptationManifest(Document):
+    prepared_hash: str
+    plan_hash: str
+    brief_hash: str
+    configuration_hash: str
+    title: str
+    author: str | None = None
+    acting_score_hash: str | None = None
+    acting_score_file: str = ""
+    prepared_sections_hash: str | None = None
+    reuse_hash: str | None = None
+    script_files: list[str] = Field(default_factory=list)
+    script_hashes: dict[str, str] = Field(default_factory=dict)
+    coverage_hash: str | None = None
+    sections_hash: str | None = None
+    section_file: str = ""
+    complete: bool = False
+
+
+class Fragment(Record):
+    id: str
+    start: int
+    end: int
+
+
+class PacketPage(Record):
+    id: str
+    unit_ids: list[str]
+    section_id: str | None = None
+    words: int | None = None
+
+
+class WorkerPacket(Document):
+    batch_id: str
+    attempt_id: str
+    prepared_hash: str
+    plan_hash: str
+    brief_hash: str
+    configuration_hash: str
+    acting_score_hash: str | None = None
+    predecessor_hash: str
+    section_id: str = ""
+    owned_units: list[Unit]
+    pages: list[PacketPage] = Field(default_factory=list)
+    continuity: str = ""
+    draft_path: str = ""
+    fragments: list[Fragment] = Field(default_factory=list)
+    fragment_plan_hash: str = ""
+    acting_score_moves: list[DirectorMove] = Field(default_factory=list)
+    fragment_predecessor_hash: str = ""
+
+
+class DirectionPacket(Document):
+    task_id: str
+    task_hash: str
+    prepared_hash: str
+    brief_hash: str
+    configuration_hash: str
+    direction_context_hash: str
+    scope_section_ids: list[str]
+    owned_units: list[Unit]
+    draft_path: str
+
+
+class ActiveTask(Document):
+    task_id: str = ""
+    attempt_id: str = ""
+    packet_path: str = ""
+    scope_section_ids: list[str] = Field(default_factory=list)
+
+
+class AcceptedBatch(Record):
+    result: Result
+    result_hash: str
+    review: Review
+    fragment_results: list[FragmentResult] = Field(default_factory=list)
+
+
+class AcceptedDirection(Record):
+    score: ScoreDraft
+    score_hash: str
+    review: ScoreReview
+
+
+class ReusedUnit(Record):
+    result: Disposition
+    review: Review
+    origin_result_hash: str
+
+
+class Reuse(Record):
+    reuse_version: Literal[1] = 1
+    previous_prepared_hash: str
+    units: dict[str, ReusedUnit]
+
+
+class DirectionLineage(Record):
+    score_move_ids: list[str] = Field(default_factory=list)
+    action: Action | None = None
+
+
+class SpeechSpan(DirectionLineage):
+    speech_id: str
+    start: int
+    end: int
+    choice: str | None = None
+    proposed_parameters: Parameters
+
+
+class Coverage(Record):
+    unit_id: str
+    disposition: Literal["narrated", "excluded", "unresolved"]
+    reason: str | None
+    speech_spans: list[SpeechSpan] = Field(default_factory=list)
+
+
+class AdaptedSection(Section):
+    script_file: str | None = None
+    title_speech_id: str | None = None
+    normalized_title: str = ""
+
+
 @app.command()
-def schema(kind: str):
+def schema(kind: str) -> None:
     """Print the typed brief, result, fragment or review contract."""
     models = {
         "brief": Brief,
@@ -323,8 +465,11 @@ def schema(kind: str):
     typer.echo(json.dumps(models[kind].model_json_schema(), indent=2))
 
 
-def brief_configuration(brief: Brief):
-    configuration = {"voices": brief.voices, "defaults": brief.defaults.model_dump()}
+def brief_configuration(brief: Brief) -> dict[str, object]:
+    configuration: dict[str, object] = {
+        "voices": brief.voices,
+        "defaults": brief.defaults.model_dump(),
+    }
     if brief.direction is None:
         configuration["performance_choices"] = {
             name: choice.model_dump() for name, choice in brief.performance_choices.items()
@@ -334,48 +479,52 @@ def brief_configuration(brief: Brief):
     return configuration
 
 
-def load_workspace_state(root: Path):
+def load_workspace_state(
+    root: Path,
+) -> tuple[AdaptationManifest, list[Unit], AdaptationPlan, Brief]:
     manifest, units = admit(root / "prepared")
-    plan = read_json(root / "plan.json")
+    plan = AdaptationPlan.model_validate_json((root / "plan.json").read_text())
     brief = Brief.model_validate_json((root / "text-brief.json").read_text())
-    saved = read_json(root / "manifest.json")
-    if identity(manifest) != saved["prepared_hash"] or identity(plan) != saved["plan_hash"]:
+    saved = AdaptationManifest.model_validate_json((root / "manifest.json").read_text())
+    if identity(manifest) != saved.prepared_hash or identity(plan) != saved.plan_hash:
         raise ValueError("prepared bundle or plan changed; create an explicit revision")
-    if identity(brief.model_dump()) != saved["brief_hash"]:
+    if identity(brief.model_dump()) != saved.brief_hash:
         raise ValueError("brief changed; create an explicit revision")
-    if identity(brief_configuration(brief)) != saved["configuration_hash"]:
+    if identity(brief_configuration(brief)) != saved.configuration_hash:
         raise ValueError("configuration changed")
-    if manifest["prepared_text_version"] == 2:
+    if manifest.prepared_text_version == 2:
         prepared_sections = [
             section.model_dump() for section in sections(root / "prepared", manifest, units)
         ]
-        if identity(prepared_sections) != saved.get("prepared_sections_hash"):
+        if identity(prepared_sections) != saved.prepared_sections_hash:
             raise ValueError("prepared section contract changed")
-    expected_plan = (
-        partition(units, max_batch_pages=4, max_batch_words=2400)
-        if plan.get("plan_version") == 1
-        else partition(
-            units,
-            max_batch_pages=plan.get("max_batch_pages", 0),
-            max_batch_words=plan.get("max_batch_words", 0),
+    if plan.plan_version == 1:
+        if {"max_batch_pages", "max_batch_words"} & plan.model_fields_set:
+            raise ValueError("plan does not match prepared-unit partition")
+        expected_plan = partition(units, max_batch_pages=4, max_batch_words=2400).model_copy(
+            update={"plan_version": 1, "max_batch_pages": None, "max_batch_words": None}
         )
-    )
-    if plan.get("plan_version") == 1:
-        expected_plan = {**expected_plan, "plan_version": 1}
-        expected_plan.pop("max_batch_pages")
-        expected_plan.pop("max_batch_words")
+    else:
+        if plan.max_batch_pages is None or plan.max_batch_words is None:
+            raise ValueError("plan does not match prepared-unit partition")
+        expected_plan = partition(
+            units, max_batch_pages=plan.max_batch_pages, max_batch_words=plan.max_batch_words
+        )
     if plan != expected_plan:
         raise ValueError("plan does not match prepared-unit partition")
-    if "reuse_hash" in saved and identity(read_json(root / "reuse.json")) != saved["reuse_hash"]:
+    if (
+        saved.reuse_hash is not None
+        and identity(read_json(root / "reuse.json")) != saved.reuse_hash
+    ):
         raise ValueError("revision reuse record changed")
-    if saved.get("acting_score_hash"):
-        score = ActingScore.model_validate_json((root / saved["acting_score_file"]).read_text())
-        if identity(score.model_dump()) != saved["acting_score_hash"]:
+    if saved.acting_score_hash:
+        score = ActingScore.model_validate_json((root / saved.acting_score_file).read_text())
+        if identity(score.model_dump()) != saved.acting_score_hash:
             raise ValueError("accepted acting score changed")
         if (
-            score.prepared_hash != saved["prepared_hash"]
-            or score.brief_hash != saved["brief_hash"]
-            or score.configuration_hash != saved["configuration_hash"]
+            score.prepared_hash != saved.prepared_hash
+            or score.brief_hash != saved.brief_hash
+            or score.configuration_hash != saved.configuration_hash
         ):
             raise ValueError("accepted acting score is stale")
         if brief.direction is None or score.direction_context_hash != identity(
@@ -386,71 +535,76 @@ def load_workspace_state(root: Path):
     return saved, units, plan, brief
 
 
-def find_batch(plan, batch_id):
-    matches = [b for b in plan["batches"] if b["id"] == batch_id]
+def find_batch(plan: AdaptationPlan, batch_id: str) -> Batch:
+    matches = [b for b in plan.batches if b.id == batch_id]
     if len(matches) != 1:
         raise ValueError("unknown batch ID")
     return matches[0]
 
 
-def load_accepted_batches(root, saved, plan):
-    records = {}
-    for batch in plan["batches"]:
-        path = root / "work" / (batch["id"] + ".json")
+def load_accepted_batches(
+    root: Path, saved: AdaptationManifest, plan: AdaptationPlan
+) -> dict[str, AcceptedBatch]:
+    records: dict[str, AcceptedBatch] = {}
+    for batch in plan.batches:
+        path = root / "work" / (batch.id + ".json")
         if not path.exists():
             continue
-        record = read_json(path)
-        result = Result.model_validate_json(json.dumps(record["result"]))
+        record = AcceptedBatch.model_validate_json(path.read_text())
+        result = record.result
         if any(
-            result.model_dump()[k] != saved[k]
+            result.model_dump()[k] != saved.model_dump()[k]
             for k in ("prepared_hash", "plan_hash", "configuration_hash", "brief_hash")
         ):
-            raise ValueError("stale accepted work: " + batch["id"])
-        if record["result_hash"] != identity(record["result"]):
-            raise ValueError("changed accepted record: " + batch["id"])
-        review = Review.model_validate_json(json.dumps(record["review"]))
-        if review.result_hash != record["result_hash"] or not all(
+            raise ValueError("stale accepted work: " + batch.id)
+        if record.result_hash != identity(record.result):
+            raise ValueError("changed accepted record: " + batch.id)
+        review = record.review
+        if review.result_hash != record.result_hash or not all(
             (
                 review.editorial_changes_checked,
                 review.boundary_checked,
                 review.fidelity_and_performance_checked,
             )
         ):
-            raise ValueError("missing exact-result review: " + batch["id"])
-        if [u.id for u in result.units] != batch["unit_ids"]:
+            raise ValueError("missing exact-result review: " + batch.id)
+        if [u.id for u in result.units] != batch.unit_ids:
             raise ValueError("accepted ownership differs from plan")
-        records[batch["id"]] = record
+        records[batch.id] = record
     return records
 
 
-def preceding_batch_context(batch, plan, records):
-    section = [b for b in plan["batches"] if b["section_id"] == batch["section_id"]]
+def preceding_batch_context(
+    batch: Batch, plan: AdaptationPlan, records: dict[str, AcceptedBatch]
+) -> tuple[str, str]:
+    section = [b for b in plan.batches if b.section_id == batch.section_id]
     position = section.index(batch)
     if position == 0:
         return "section-start", ""
-    previous = section[position - 1]["id"]
+    previous = section[position - 1].id
     if previous not in records:
         raise ValueError("preceding batch is not accepted")
     record = records[previous]
-    return record["result_hash"], record["result"]["continuity"]
+    return record.result_hash, record.result.continuity
 
 
-def expected_disposition(unit: Unit, brief: Brief):
-    dispositions = {
+def expected_disposition(unit: Unit, brief: Brief) -> Literal["narrated", "excluded"] | None:
+    dispositions: set[Literal["narrated", "excluded"]] = {
         rule.disposition
         for rule in brief.rules
         if unit.id in rule.unit_ids and rule.disposition is not None
     }
     if len(dispositions) > 1:
         raise ValueError("conflicting disposition rules: " + unit.id)
-    return next(
-        iter(dispositions),
-        "excluded" if unit.role == "paratext" else "narrated" if unit.role == "body" else None,
-    )
+    if dispositions:
+        return next(iter(dispositions))
+    if unit.role == "paratext":
+        return "excluded"
+    return "narrated" if unit.role == "body" else None
 
 
-def score_units(units: list[Unit], brief: Brief):
-    selected = []
+def score_units(units: list[Unit], brief: Brief) -> list[Unit]:
+    selected: list[Unit] = []
     for unit in units:
         disposition = expected_disposition(unit, brief)
         if disposition is None:
@@ -460,7 +614,9 @@ def score_units(units: list[Unit], brief: Brief):
     return selected
 
 
-def check_score_moves(moves: list[DirectorMove], owned: list[Unit], brief: Brief):
+def check_score_moves(
+    moves: list[DirectorMove], owned: list[Unit], brief: Brief
+) -> list[DirectorMove]:
     if brief.direction is None:
         raise ValueError("acting score requires direction context")
     if len({move.id for move in moves}) != len(moves):
@@ -487,20 +643,22 @@ def check_score_moves(moves: list[DirectorMove], owned: list[Unit], brief: Brief
     return moves
 
 
-def accepted_direction_records(root: Path, saved, units, brief):
-    records = []
+def accepted_direction_records(
+    root: Path, saved: AdaptationManifest, units: list[Unit], brief: Brief
+) -> list[AcceptedDirection]:
+    records: list[AcceptedDirection] = []
     work = root / "direction" / "work"
     if not work.exists():
         return records
     for path in sorted(work.glob("*.json")):
-        record = read_json(path)
-        score = ScoreDraft.model_validate_json(json.dumps(record["score"]))
-        review = ScoreReview.model_validate_json(json.dumps(record["review"]))
+        record = AcceptedDirection.model_validate_json(path.read_text())
+        score = record.score
+        review = record.review
         digest = identity(score.model_dump())
-        if record["score_hash"] != digest or review.score_hash != digest:
+        if record.score_hash != digest or review.score_hash != digest:
             raise ValueError("changed accepted direction record: " + path.stem)
         if any(
-            score.model_dump()[key] != saved[key]
+            score.model_dump()[key] != saved.model_dump()[key]
             for key in ("prepared_hash", "brief_hash", "configuration_hash")
         ):
             raise ValueError("stale accepted direction record: " + path.stem)
@@ -516,10 +674,12 @@ def accepted_direction_records(root: Path, saved, units, brief):
     return records
 
 
-def accepted_acting_score(root: Path, saved, units, brief):
-    if not saved.get("acting_score_hash"):
+def accepted_acting_score(
+    root: Path, saved: AdaptationManifest, units: list[Unit], brief: Brief
+) -> ActingScore | None:
+    if not saved.acting_score_hash:
         return None
-    score = ActingScore.model_validate_json((root / saved["acting_score_file"]).read_text())
+    score = ActingScore.model_validate_json((root / saved.acting_score_file).read_text())
     check_score_moves(score.moves, score_units(units, brief), brief)
     return score
 
@@ -555,12 +715,14 @@ def retained_note_call(unit: Unit, normalized: str) -> bool:
 
 def check_disposition(
     item: Disposition, unit: Unit, brief: Brief, score_moves: list[DirectorMove] | None = None
-):
+) -> None:
     rules = [r for r in brief.rules if item.id in r.unit_ids]
     rule_ids = {r.id for r in rules}
     if set(item.applied_rule_ids) - rule_ids:
         raise ValueError("unscoped rule: " + item.id)
-    dispositions = {r.disposition for r in rules if r.disposition is not None}
+    dispositions: set[Literal["narrated", "excluded"]] = {
+        r.disposition for r in rules if r.disposition is not None
+    }
     if len(dispositions) > 1:
         raise ValueError("conflicting disposition rules")
     expected = next(
@@ -595,7 +757,11 @@ def check_disposition(
         if beat.voice not in brief.voices:
             raise ValueError("unknown voice")
         if score_moves is None:
-            if beat.action is not None or beat.choice not in brief.performance_choices:
+            if (
+                beat.action is not None
+                or beat.choice is None
+                or beat.choice not in brief.performance_choices
+            ):
                 raise ValueError("undirected beat requires a known legacy choice")
             if beat.parameters != brief.performance_choices[beat.choice].parameters:
                 raise ValueError("parameters differ from approved legacy choice")
@@ -614,7 +780,7 @@ def check_disposition(
             raise ValueError("narrated unit lacks director moves")
         expected_ids = [move.id for move in score_moves]
         known = {move.id: move for move in score_moves}
-        mapped = []
+        mapped: list[str] = []
         for beat in item.beats:
             if not beat.score_move_ids or any(
                 move_id not in known for move_id in beat.score_move_ids
@@ -629,60 +795,74 @@ def check_disposition(
             raise ValueError("beats omit or reorder director moves")
 
 
-def validate_result(root: Path, draft: Path, stored_result: Result | None = None):
+def validate_result(
+    root: Path, draft: Path, stored_result: Result | None = None
+) -> tuple[Result, AdaptationManifest, list[Unit], AdaptationPlan, Brief, WorkerPacket]:
     saved, units, plan, brief = load_workspace_state(root)
     result = stored_result or Result.model_validate_json(draft.read_text())
     batch = find_batch(plan, result.batch_id)
     task_path = root / "tasks" / result.batch_id / (result.attempt_id + ".json")
-    packet = read_json(task_path)
-    if packet["draft_path"] != str(draft.resolve()):
+    packet = WorkerPacket.model_validate_json(task_path.read_text())
+    if packet.draft_path != str(draft.resolve()):
         raise ValueError("draft path differs from assigned output")
-    if packet["batch_id"] != result.batch_id or packet["attempt_id"] != result.attempt_id:
+    if packet.batch_id != result.batch_id or packet.attempt_id != result.attempt_id:
         raise ValueError("task identity differs from result")
-    if [unit["id"] for unit in packet["owned_units"]] != batch["unit_ids"]:
+    if [unit.id for unit in packet.owned_units] != batch.unit_ids:
         raise ValueError("packet ownership differs from frozen plan")
     for key in ("prepared_hash", "plan_hash", "configuration_hash", "brief_hash"):
-        if result.model_dump()[key] != saved[key] or packet[key] != saved[key]:
+        if (
+            result.model_dump()[key] != saved.model_dump()[key]
+            or packet.model_dump()[key] != saved.model_dump()[key]
+        ):
             raise ValueError("stale task/result " + key)
     score = accepted_acting_score(root, saved, units, brief)
-    expected_score_hash = saved.get("acting_score_hash")
+    expected_score_hash = saved.acting_score_hash
     if (
         result.acting_score_hash != expected_score_hash
-        or packet.get("acting_score_hash") != expected_score_hash
+        or packet.acting_score_hash != expected_score_hash
     ):
         raise ValueError("stale or missing acting score identity")
     records = load_accepted_batches(root, saved, plan)
     pred, _ = preceding_batch_context(batch, plan, records)
-    if result.predecessor_hash != pred or packet["predecessor_hash"] != pred:
+    if result.predecessor_hash != pred or packet.predecessor_hash != pred:
         raise ValueError("stale continuity")
     active = root / "tasks" / result.batch_id / "active.json"
     if stored_result is None and result.batch_id not in records:
-        if not active.exists() or read_json(active)["attempt_id"] != result.attempt_id:
+        if (
+            not active.exists()
+            or ActiveTask.model_validate_json(active.read_text()).attempt_id != result.attempt_id
+        ):
             raise ValueError("attempt is no longer active")
-    if [u.id for u in result.units] != batch["unit_ids"]:
+    if [u.id for u in result.units] != batch.unit_ids:
         raise ValueError("result must cover exactly the ordered owned units")
     if result.issues or len(result.continuity.split()) > 300:
         raise ValueError("unresolved issues or oversized continuity")
     by_id = {u.id: u for u in units}
-    fixed = read_json(root / "reuse.json")["units"] if (root / "reuse.json").exists() else {}
+    fixed = (
+        Reuse.model_validate_json((root / "reuse.json").read_text()).units
+        if (root / "reuse.json").exists()
+        else {}
+    )
     score_by_unit = (
         {
             unit_id: [move for move in score.moves if move.unit_id == unit_id]
-            for unit_id in batch["unit_ids"]
+            for unit_id in batch.unit_ids
         }
         if score
         else {}
     )
     for item in result.units:
         unit = by_id[item.id]
-        if item.id in fixed and item.model_dump() != fixed[item.id]["result"]:
+        if item.id in fixed and item.model_dump() != fixed[item.id].result.model_dump():
             raise ValueError("unchanged reviewed unit was reinterpreted: " + item.id)
         check_disposition(item, unit, brief, score_by_unit.get(item.id) if score else None)
-    if packet.get("fragments"):
-        if identity(packet["fragments"]) != packet["fragment_plan_hash"]:
+    if packet.fragments:
+        if identity(packet.fragments) != packet.fragment_plan_hash:
             raise ValueError("changed fragment boundary plan")
         snapshots = (
-            read_json(root / "work" / (result.batch_id + ".json"))["fragment_results"]
+            AcceptedBatch.model_validate_json(
+                (root / "work" / (result.batch_id + ".json")).read_text()
+            ).fragment_results
             if stored_result is not None
             else None
         )
@@ -693,7 +873,7 @@ def validate_result(root: Path, draft: Path, stored_result: Result | None = None
 
 
 @app.command()
-def init(prepared: Path, brief_path: Path, workspace: Path):
+def init(prepared: Path, brief_path: Path, workspace: Path) -> None:
     """Freeze an admitted bundle, surveyed brief and deterministic plan."""
     workspace = work_path(workspace)
     if workspace.exists():
@@ -711,15 +891,15 @@ def init(prepared: Path, brief_path: Path, workspace: Path):
         set(cue.unit_ids) - ids for cue in brief.direction.user_cues
     ):
         raise ValueError("direction cue refers to unknown units")
-    if set(brief.section_baselines) != set(manifest["section_ids"]):
+    if set(brief.section_baselines) != set(manifest.section_ids):
         raise ValueError("every source section needs a baseline")
     dependencies = brief.section_dependencies
-    if set(dependencies) != set(manifest["section_ids"]) or any(
+    if set(dependencies) != set(manifest.section_ids) or any(
         set(v) - set(dependencies) for v in dependencies.values()
     ):
         raise ValueError("invalid section dependencies")
 
-    def visit(section, trail):
+    def visit(section: str, trail: set[str]) -> None:
         if section in trail:
             raise ValueError("cyclic section dependencies")
         for dependency in dependencies[section]:
@@ -741,34 +921,38 @@ def init(prepared: Path, brief_path: Path, workspace: Path):
             "plan_hash": identity(plan),
             "brief_hash": identity(brief.model_dump()),
             "configuration_hash": identity(brief_configuration(brief)),
-            "title": manifest["title"],
-            "author": manifest.get("author"),
+            "title": manifest.title,
+            "author": manifest.author,
             "script_files": [],
-            "scope": manifest["scope"],
+            "scope": manifest.scope,
             **brief_configuration(brief),
         },
     )
-    typer.echo(f'{len(units)} units; {len(plan["pages"])} pages; {len(plan["batches"])} batches')
+    typer.echo(f"{len(units)} units; {len(plan.pages)} pages; {len(plan.batches)} batches")
 
 
 @app.command("direction-task")
-def direction_task(workspace: Path, section_ids: str | None = typer.Option(None, "--sections")):
+def direction_task(
+    workspace: Path, section_ids: str | None = typer.Option(None, "--sections")
+) -> None:
     """Freeze a whole-short-work or complete-section packet for a semantic director."""
     workspace = work_path(workspace)
     saved, units, _, brief = load_workspace_state(workspace)
     if brief.direction is None:
         raise ValueError("text brief has no direction context")
-    if saved.get("acting_score_hash"):
+    if saved.acting_score_hash:
         raise ValueError("acting score already accepted")
     narratable = score_units(units, brief)
     all_sections = list(dict.fromkeys(unit.section_id for unit in narratable))
     accepted_records = accepted_direction_records(workspace, saved, units, brief)
     accepted_sections = {
-        section for record in accepted_records for section in record["score"]["scope_section_ids"]
+        section for record in accepted_records for section in record.score.scope_section_ids
     }
     active_paths = list((workspace / "direction" / "tasks").glob("*.active.json"))
     active_sections = {
-        section for path in active_paths for section in read_json(path)["scope_section_ids"]
+        section
+        for path in active_paths
+        for section in ActiveTask.model_validate_json(path.read_text()).scope_section_ids
     }
     if section_ids is None:
         pending = [
@@ -803,10 +987,13 @@ def direction_task(workspace: Path, section_ids: str | None = typer.Option(None,
     owned = [unit for unit in narratable if unit.section_id in selected]
     task_id = "d" + uuid.uuid4().hex[:12]
     draft = (workspace / "direction" / "drafts" / (task_id + ".json")).resolve()
-    core = {
+    core: dict[str, object] = {
         "packet_version": 1,
         "task_id": task_id,
-        **{key: saved[key] for key in ("prepared_hash", "brief_hash", "configuration_hash")},
+        **{
+            key: saved.model_dump()[key]
+            for key in ("prepared_hash", "brief_hash", "configuration_hash")
+        },
         "direction_context_hash": identity(brief.direction.model_dump()),
         "scope_section_ids": selected,
         "owned_units": [unit.model_dump() for unit in owned],
@@ -826,7 +1013,7 @@ def direction_task(workspace: Path, section_ids: str | None = typer.Option(None,
         "score_schema": ScoreDraft.model_json_schema(),
         "draft_path": str(draft),
     }
-    packet = {**core, "task_hash": identity(core)}
+    packet: dict[str, object] = {**core, "task_hash": identity(core)}
     path = workspace / "direction" / "tasks" / (task_id + ".json")
     write_atomic(path, packet)
     write_atomic(
@@ -837,38 +1024,46 @@ def direction_task(workspace: Path, section_ids: str | None = typer.Option(None,
     typer.echo(str(path.resolve()))
 
 
-def validate_score_draft(workspace: Path, draft: Path):
+def validate_score_draft(
+    workspace: Path, draft: Path
+) -> tuple[ScoreDraft, AdaptationManifest, list[Unit], Brief, DirectionPacket]:
     saved, units, _, brief = load_workspace_state(workspace)
     score = ScoreDraft.model_validate_json(draft.read_text())
     task_path = workspace / "direction" / "tasks" / (score.task_id + ".json")
-    packet = read_json(task_path)
+    packet = DirectionPacket.model_validate_json(task_path.read_text())
     active = task_path.with_suffix(".active.json")
-    if not active.exists() or read_json(active)["task_id"] != score.task_id:
+    if (
+        not active.exists()
+        or ActiveTask.model_validate_json(active.read_text()).task_id != score.task_id
+    ):
         raise ValueError("direction attempt is no longer active")
-    if packet["draft_path"] != str(draft.resolve()) or packet["task_hash"] != score.task_hash:
+    if packet.draft_path != str(draft.resolve()) or packet.task_hash != score.task_hash:
         raise ValueError("score differs from its assigned task")
     for key in ("prepared_hash", "brief_hash", "configuration_hash"):
-        if score.model_dump()[key] != saved[key] or packet[key] != saved[key]:
+        if (
+            score.model_dump()[key] != saved.model_dump()[key]
+            or packet.model_dump()[key] != saved.model_dump()[key]
+        ):
             raise ValueError("stale score " + key)
     direction_hash = identity(brief.direction.model_dump()) if brief.direction else None
     if (
         score.direction_context_hash != direction_hash
-        or packet["direction_context_hash"] != direction_hash
+        or packet.direction_context_hash != direction_hash
     ):
         raise ValueError("stale direction context")
-    if score.scope_section_ids != packet["scope_section_ids"]:
+    if score.scope_section_ids != packet.scope_section_ids:
         raise ValueError("score scope differs from task")
     owned = [
         unit for unit in score_units(units, brief) if unit.section_id in score.scope_section_ids
     ]
-    if owned != [Unit.model_validate_json(json.dumps(item)) for item in packet["owned_units"]]:
+    if owned != packet.owned_units:
         raise ValueError("score task ownership changed")
     check_score_moves(score.moves, owned, brief)
     return score, saved, units, brief, packet
 
 
 @app.command("validate-score")
-def validate_score(workspace: Path, draft: Path):
+def validate_score(workspace: Path, draft: Path) -> None:
     workspace = work_path(workspace)
     score, *_ = validate_score_draft(workspace, draft)
     typer.echo(
@@ -877,7 +1072,7 @@ def validate_score(workspace: Path, draft: Path):
 
 
 @app.command("accept-score")
-def accept_score(workspace: Path, draft: Path, review_path: Path):
+def accept_score(workspace: Path, draft: Path, review_path: Path) -> None:
     """Accept reviewed direction and freeze the global score once coverage is complete."""
     workspace = work_path(workspace)
     score, saved, units, brief, _ = validate_score_draft(workspace, draft)
@@ -903,28 +1098,26 @@ def accept_score(workspace: Path, draft: Path, review_path: Path):
     (workspace / "direction" / "tasks" / (score.task_id + ".active.json")).unlink()
     records = accepted_direction_records(workspace, saved, units, brief)
     expected = score_units(units, brief)
-    moves = [
-        DirectorMove.model_validate(move) for record in records for move in record["score"]["moves"]
-    ]
+    moves = [DirectorMove.model_validate(move) for record in records for move in record.score.moves]
     if {move.unit_id for move in moves} == {unit.id for unit in expected}:
         order = {unit.id: position for position, unit in enumerate(expected)}
         moves.sort(key=lambda move: (order[move.unit_id], move.start))
         check_score_moves(moves, expected, brief)
         global_score = ActingScore(
-            prepared_hash=saved["prepared_hash"],
-            brief_hash=saved["brief_hash"],
-            configuration_hash=saved["configuration_hash"],
-            direction_context_hash=identity(brief.direction.model_dump()),
-            component_hashes=[record["score_hash"] for record in records],
+            prepared_hash=saved.prepared_hash,
+            brief_hash=saved.brief_hash,
+            configuration_hash=saved.configuration_hash,
+            direction_context_hash=score.direction_context_hash,
+            component_hashes=[record.score_hash for record in records],
             moves=moves,
         )
         path = workspace / "acting-score.json"
         write_atomic(path, global_score.model_dump())
-        current = read_json(workspace / "manifest.json")
+        current = AdaptationManifest.model_validate_json((workspace / "manifest.json").read_text())
         write_atomic(
             workspace / "manifest.json",
             {
-                **current,
+                **current.model_dump(exclude_unset=True),
                 "acting_score_file": "acting-score.json",
                 "acting_score_hash": identity(global_score.model_dump()),
             },
@@ -937,17 +1130,20 @@ def accept_score(workspace: Path, draft: Path, review_path: Path):
 
 
 @app.command("abandon-direction")
-def abandon_direction(workspace: Path, task_id: str, reason: str):
+def abandon_direction(workspace: Path, task_id: str, reason: str) -> None:
     """Retire a stopped direction attempt so its complete sections can be reassigned."""
     workspace = work_path(workspace)
     active = workspace / "direction" / "tasks" / (task_id + ".active.json")
-    value = read_json(active)
-    write_atomic(active.with_suffix(".abandoned.json"), {**value, "reason": reason})
+    value = ActiveTask.model_validate_json(active.read_text())
+    write_atomic(
+        active.with_suffix(".abandoned.json"),
+        {**value.model_dump(exclude_unset=True), "reason": reason},
+    )
     active.unlink()
 
 
 @app.command("migrate-brief")
-def migrate_brief(version_one: Path, version_two: Path, brief_path: Path, output: Path):
+def migrate_brief(version_one: Path, version_two: Path, brief_path: Path, output: Path) -> None:
     """Rebind a surveyed brief when section migration leaves every source unit unchanged."""
     if output.exists():
         raise ValueError("new brief path required")
@@ -963,7 +1159,7 @@ def migrate_brief(version_one: Path, version_two: Path, brief_path: Path, output
     typer.echo(f"brief rebound to version two; {len(new_units)} unchanged surveyed units")
 
 
-def unit_contract(unit: Unit, brief: Brief):
+def unit_contract(unit: Unit, brief: Brief) -> dict[str, object]:
     """The interpretation inputs capable of changing one unit's accepted result."""
     return {
         "unit": unit.model_dump(),
@@ -977,7 +1173,7 @@ def unit_contract(unit: Unit, brief: Brief):
 
 
 @app.command()
-def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace: Path):
+def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace: Path) -> None:
     """Freeze an explicit revision and reuse only unchanged reviewed unit contracts."""
     workspace = work_path(workspace)
     revised_workspace = work_path(revised_workspace)
@@ -996,7 +1192,7 @@ def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace:
     old_order = [u.id for u in old_units]
     new_order = [u.id for u in new_units]
 
-    def neighbors(order, key):
+    def neighbors(order: list[str], key: str) -> list[str]:
         position = order.index(key)
         return order[max(0, position - 1) : position] + order[position + 1 : position + 2]
 
@@ -1022,23 +1218,26 @@ def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace:
     # A new directed score is not accepted yet, so old move lineage cannot be reused.
     if old_brief.direction is not None or new_brief.direction is not None:
         unchanged.clear()
-    reused = {}
+    reused: dict[str, ReusedUnit] = {}
     for record in records.values():
-        for raw in record["result"]["units"]:
-            if raw["id"] in unchanged:
-                reused[raw["id"]] = {
-                    "result": raw,
-                    "review": record["review"],
-                    "origin_result_hash": record["result_hash"],
-                }
+        for raw in record.result.units:
+            if raw.id in unchanged:
+                reused[raw.id] = ReusedUnit(
+                    result=raw, review=record.review, origin_result_hash=record.result_hash
+                )
     reuse = {
         "reuse_version": 1,
-        "previous_prepared_hash": old_saved["prepared_hash"],
+        "previous_prepared_hash": old_saved.prepared_hash,
         "units": reused,
     }
     write_atomic(revised_workspace / "reuse.json", reuse)
-    saved = read_json(revised_workspace / "manifest.json")
-    write_atomic(revised_workspace / "manifest.json", {**saved, "reuse_hash": identity(reuse)})
+    saved = AdaptationManifest.model_validate_json(
+        (revised_workspace / "manifest.json").read_text()
+    )
+    write_atomic(
+        revised_workspace / "manifest.json",
+        {**saved.model_dump(exclude_unset=True), "reuse_hash": identity(reuse)},
+    )
     typer.echo(
         f"{len(reused)} unchanged reviewed units frozen for reuse; remaining units need adaptation"
     )
@@ -1050,7 +1249,7 @@ def task(
     batch_id: str,
     fragment_boundaries: Path | None = typer.Option(None),
     owned_word_budget: int = typer.Option(6000, min=1),
-):
+) -> None:
     """Create one bounded worker packet; refuse accepted or already active work."""
     workspace = work_path(workspace)
     saved, units, plan, brief = load_workspace_state(workspace)
@@ -1064,22 +1263,22 @@ def task(
     active = workspace / "tasks" / batch_id / "active.json"
     if active.exists():
         raise ValueError("active attempt exists; inspect its packet or abandon explicitly")
-    for dependency in brief.section_dependencies[batch["section_id"]]:
-        if any(b["id"] not in records for b in plan["batches"] if b["section_id"] == dependency):
+    for dependency in brief.section_dependencies[batch.section_id]:
+        if any(b.id not in records for b in plan.batches if b.section_id == dependency):
             raise ValueError("dependent section is incomplete")
     pred, continuity = preceding_batch_context(batch, plan, records)
-    owned = [u for u in units if u.id in batch["unit_ids"]]
-    fragments = []
+    owned = [u for u in units if u.id in batch.unit_ids]
+    fragments: list[Fragment] = []
     if fragment_boundaries is not None:
         if len(owned) != 1 or owned[0].kind not in ("paragraph", "list_item"):
             raise ValueError("fragment boundaries require one nonheading source unit")
-        boundaries = read_json(fragment_boundaries)
+        boundaries = TypeAdapter(list[int]).validate_json(
+            fragment_boundaries.read_text(), strict=True
+        )
         text = owned[0].prepared_text
-        sentence_starts = {start for start, end in sentence_spans(text)}
+        sentence_starts = {start for start, _ in sentence_spans(text)}
         if (
-            not isinstance(boundaries, list)
-            or len(boundaries) < 3
-            or any(type(value) is not int for value in boundaries)
+            len(boundaries) < 3
             or boundaries[0] != 0
             or boundaries[-1] != len(text)
             or any(a >= b for a, b in zip(boundaries, boundaries[1:]))
@@ -1093,14 +1292,14 @@ def task(
                 raise ValueError("fragment boundary must be a verified English sentence start")
             if any(start < b < end or start < a < end for start, end in owned[0].note_call_spans):
                 raise ValueError("fragment boundary splits a citation call")
-            fragments.append({"id": f"f{position:06d}", "start": a, "end": b})
+            fragments.append(Fragment(id=f"f{position:06d}", start=a, end=b))
     elif any(len(u.prepared_text.split()) > owned_word_budget for u in owned):
         raise ValueError(
             "oversized unit requires verified fragments and a sequential contract before dispatch"
         )
     start = units.index(owned[0])
     stop = units.index(owned[-1])
-    context = []
+    context: list[dict[str, object]] = []
     for neighbor in ([units[start - 1]] if start else []) + (
         [units[stop + 1]] if stop + 1 < len(units) else []
     ):
@@ -1116,15 +1315,23 @@ def task(
     attempt = uuid.uuid4().hex
     draft = (workspace / "drafts" / batch_id / (attempt + ".json")).resolve()
     draft.parent.mkdir(parents=True, exist_ok=True)
-    packet = {
+    reusable = (
+        Reuse.model_validate_json((workspace / "reuse.json").read_text()).units
+        if (workspace / "reuse.json").exists()
+        else {}
+    )
+    packet: dict[str, object] = {
         "packet_version": 1,
         "batch_id": batch_id,
         "attempt_id": attempt,
         "owned_word_budget": owned_word_budget,
-        **{k: saved[k] for k in ("prepared_hash", "plan_hash", "brief_hash", "configuration_hash")},
-        "acting_score_hash": saved.get("acting_score_hash"),
-        "section_id": batch["section_id"],
-        "pages": [p for p in plan["pages"] if p["id"] in batch["page_ids"]],
+        **{
+            k: saved.model_dump()[k]
+            for k in ("prepared_hash", "plan_hash", "brief_hash", "configuration_hash")
+        },
+        "acting_score_hash": saved.acting_score_hash,
+        "section_id": batch.section_id,
+        "pages": [p for p in plan.pages if p.id in batch.page_ids],
         "owned_units": [u.model_dump() for u in owned],
         "context_only": context,
         "predecessor_hash": pred,
@@ -1132,19 +1339,13 @@ def task(
         "narrator": brief.narrator,
         **brief_configuration(brief),
         **(
-            {"baseline": brief.section_baselines[batch["section_id"]]}
+            {"baseline": brief.section_baselines[batch.section_id]}
             if brief.direction is None
             else {}
         ),
-        "rules": [r.model_dump() for r in brief.rules if set(r.unit_ids) & set(batch["unit_ids"])],
+        "rules": [r.model_dump() for r in brief.rules if set(r.unit_ids) & set(batch.unit_ids)],
         "fixed_results": {
-            key: value["result"]
-            for key, value in (
-                read_json(workspace / "reuse.json")["units"].items()
-                if (workspace / "reuse.json").exists()
-                else []
-            )
-            if key in batch["unit_ids"]
+            key: value.result for key, value in reusable.items() if key in batch.unit_ids
         },
         "pronunciation_watchlist": brief.pronunciation_watchlist,
         "reference_paths": [
@@ -1168,7 +1369,7 @@ def task(
     }
     if score is not None:
         packet["acting_score_moves"] = [
-            move.model_dump() for move in score.moves if move.unit_id in batch["unit_ids"]
+            move.model_dump() for move in score.moves if move.unit_id in batch.unit_ids
         ]
     if fragments:
         packet["fragments"] = fragments
@@ -1179,28 +1380,30 @@ def task(
     typer.echo(str(path.resolve()))
 
 
-def active_packet(workspace: Path, batch_id: str):
+def active_packet(workspace: Path, batch_id: str) -> tuple[WorkerPacket, Brief]:
     saved, _, _, brief = load_workspace_state(workspace)
-    active = read_json(workspace / "tasks" / batch_id / "active.json")
-    packet = read_json(Path(active["packet_path"]))
-    if packet["attempt_id"] != active["attempt_id"] or any(
-        packet[key] != saved[key]
+    active = ActiveTask.model_validate_json(
+        (workspace / "tasks" / batch_id / "active.json").read_text()
+    )
+    packet = WorkerPacket.model_validate_json(Path(active.packet_path).read_text())
+    if packet.attempt_id != active.attempt_id or any(
+        packet.model_dump()[key] != saved.model_dump()[key]
         for key in ("prepared_hash", "plan_hash", "brief_hash", "configuration_hash")
     ):
         raise ValueError("stale fragment coordinator")
-    if not packet.get("fragments") or identity(packet["fragments"]) != packet["fragment_plan_hash"]:
+    if not packet.fragments or identity(packet.fragments) != packet.fragment_plan_hash:
         raise ValueError("missing or changed fragment plan")
     return packet, brief
 
 
-def fragment_unit(packet, fragment):
-    original = Unit.model_validate_json(json.dumps(packet["owned_units"][0]))
-    part = original.prepared_text[fragment["start"] : fragment["end"]]
-    shift = fragment["start"] + len(part) - len(part.lstrip())
+def fragment_unit(packet: WorkerPacket, fragment: Fragment) -> Unit:
+    original = packet.owned_units[0]
+    part = original.prepared_text[fragment.start : fragment.end]
+    shift = fragment.start + len(part) - len(part.lstrip())
     spans = [
         (a - shift, b - shift)
         for a, b in original.note_call_spans
-        if fragment["start"] <= a < b <= fragment["end"]
+        if fragment.start <= a < b <= fragment.end
     ]
     return original.model_copy(
         update={
@@ -1211,24 +1414,27 @@ def fragment_unit(packet, fragment):
     )
 
 
-def fragment_paths(workspace, packet, fragment_id):
-    stem = workspace / "tasks" / packet["batch_id"] / packet["attempt_id"] / fragment_id
+def fragment_paths(workspace: Path, packet: WorkerPacket, fragment_id: str) -> tuple[Path, Path]:
+    stem = workspace / "tasks" / packet.batch_id / packet.attempt_id / fragment_id
     return (
         stem.with_suffix(".json"),
         (
-            workspace
-            / "drafts"
-            / packet["batch_id"]
-            / packet["attempt_id"]
-            / (fragment_id + ".json")
+            workspace / "drafts" / packet.batch_id / packet.attempt_id / (fragment_id + ".json")
         ).resolve(),
     )
 
 
-def checked_fragment(workspace, packet, brief, position, previous_hash, stored_result=None):
-    fragment = packet["fragments"][position]
-    path, draft = fragment_paths(workspace, packet, fragment["id"])
-    child = read_json(path)
+def checked_fragment(
+    workspace: Path,
+    packet: WorkerPacket,
+    brief: Brief,
+    position: int,
+    previous_hash: str,
+    stored_result: FragmentResult | None = None,
+) -> FragmentResult:
+    fragment = packet.fragments[position]
+    path, draft = fragment_paths(workspace, packet, fragment.id)
+    child = WorkerPacket.model_validate_json(path.read_text())
     result = stored_result or FragmentResult.model_validate_json(draft.read_text())
     for key in (
         "batch_id",
@@ -1240,16 +1446,19 @@ def checked_fragment(workspace, packet, brief, position, previous_hash, stored_r
         "acting_score_hash",
         "predecessor_hash",
     ):
-        if result.result.model_dump()[key] != packet[key] or child[key] != packet[key]:
+        if (
+            result.result.model_dump()[key] != packet.model_dump()[key]
+            or child.model_dump()[key] != packet.model_dump()[key]
+        ):
             raise ValueError("fragment identity changed: " + key)
     if (
-        result.fragment_plan_hash != packet["fragment_plan_hash"]
-        or child["fragment_plan_hash"] != packet["fragment_plan_hash"]
-        or result.fragment_id != fragment["id"]
-        or result.source_start != fragment["start"]
-        or result.source_end != fragment["end"]
+        result.fragment_plan_hash != packet.fragment_plan_hash
+        or child.fragment_plan_hash != packet.fragment_plan_hash
+        or result.fragment_id != fragment.id
+        or result.source_start != fragment.start
+        or result.source_end != fragment.end
         or result.fragment_predecessor_hash != previous_hash
-        or child["fragment_predecessor_hash"] != previous_hash
+        or child.fragment_predecessor_hash != previous_hash
     ):
         raise ValueError("fragment coverage or continuity differs")
     unit = fragment_unit(packet, fragment)
@@ -1264,10 +1473,10 @@ def checked_fragment(workspace, packet, brief, position, previous_hash, stored_r
     score_moves = (
         [
             DirectorMove.model_validate(move)
-            for move in packet["acting_score_moves"]
-            if move["start"] < fragment["end"] and move["end"] > fragment["start"]
+            for move in packet.acting_score_moves
+            if move.start < fragment.end and move.end > fragment.start
         ]
-        if packet.get("acting_score_hash")
+        if packet.acting_score_hash
         else None
     )
     check_disposition(inner.units[0], unit, brief, score_moves)
@@ -1275,28 +1484,28 @@ def checked_fragment(workspace, packet, brief, position, previous_hash, stored_r
 
 
 @app.command()
-def fragment_task(workspace: Path, batch_id: str, fragment_id: str):
+def fragment_task(workspace: Path, batch_id: str, fragment_id: str) -> None:
     """Emit the next bounded packet after verifying preceding fragment continuity."""
     workspace = work_path(workspace)
     packet, brief = active_packet(workspace, batch_id)
-    ids = [fragment["id"] for fragment in packet["fragments"]]
+    ids = [fragment.id for fragment in packet.fragments]
     if fragment_id not in ids:
         raise ValueError("unknown fragment")
     position = ids.index(fragment_id)
     previous_hash = "fragment-start"
-    continuity = packet["continuity"]
+    continuity = packet.continuity
     for preceding in range(position):
         previous = checked_fragment(workspace, packet, brief, preceding, previous_hash)
         previous_hash = identity(previous.model_dump())
         continuity = previous.result.continuity
-    fragment = packet["fragments"][position]
+    fragment = packet.fragments[position]
     unit = fragment_unit(packet, fragment)
     path, draft = fragment_paths(workspace, packet, fragment_id)
-    original_text = packet["owned_units"][0]["prepared_text"]
-    context = []
+    original_text = packet.owned_units[0].prepared_text
+    context: list[dict[str, object]] = []
     for label, text in [
-        ("previous-fragment", original_text[: fragment["start"]]),
-        ("next-fragment", original_text[fragment["end"] :]),
+        ("previous-fragment", original_text[: fragment.start]),
+        ("next-fragment", original_text[fragment.end :]),
     ]:
         words = text.split()
         if words:
@@ -1308,51 +1517,54 @@ def fragment_task(workspace: Path, batch_id: str, fragment_id: str):
                     "truncated": len(words) > 400,
                 }
             )
-    child = {
+    child: dict[str, object] = {
         **{
             k: v
-            for k, v in packet.items()
+            for k, v in packet.model_dump(exclude_unset=True).items()
             if k not in ("fragments", "owned_units", "pages", "fixed_results")
         },
         "fragment_id": fragment_id,
-        "source_start": fragment["start"],
-        "source_end": fragment["end"],
+        "source_start": fragment.start,
+        "source_end": fragment.end,
         "fragment_predecessor_hash": previous_hash,
         "continuity": continuity,
         "owned_units": [unit.model_dump()],
         "context_only": context,
-        "pages": [{"id": packet["pages"][0]["id"], "unit_ids": [unit.id]}],
+        "pages": [{"id": packet.pages[0].id, "unit_ids": [unit.id]}],
         "result_schema": FragmentResult.model_json_schema(),
         "draft_path": str(draft),
     }
-    if packet.get("acting_score_moves"):
+    if packet.acting_score_moves:
         child["acting_score_moves"] = [
             {
-                **move,
-                "source_start": max(move["start"], fragment["start"]),
-                "source_end": min(move["end"], fragment["end"]),
-                "fragment_start": max(move["start"], fragment["start"]) - fragment["start"],
-                "fragment_end": min(move["end"], fragment["end"]) - fragment["start"],
+                **move.model_dump(),
+                "source_start": max(move.start, fragment.start),
+                "source_end": min(move.end, fragment.end),
+                "fragment_start": max(move.start, fragment.start) - fragment.start,
+                "fragment_end": min(move.end, fragment.end) - fragment.start,
             }
-            for move in packet["acting_score_moves"]
-            if move["start"] < fragment["end"] and move["end"] > fragment["start"]
+            for move in packet.acting_score_moves
+            if move.start < fragment.end and move.end > fragment.start
         ]
-    if path.exists() and read_json(path) != child:
+    if path.exists() and WorkerPacket.model_validate_json(
+        path.read_text()
+    ) != WorkerPacket.model_validate(child):
         raise ValueError("existing fragment packet differs; repair preceding result explicitly")
     write_atomic(path, child)
     draft.parent.mkdir(parents=True, exist_ok=True)
     typer.echo(str(path.resolve()))
 
 
-def assembled_fragments(workspace, packet, brief, stored_fragments=None):
-    results = []
+def assembled_fragments(
+    workspace: Path,
+    packet: WorkerPacket,
+    brief: Brief,
+    stored_fragments: list[FragmentResult] | None = None,
+) -> tuple[Result, list[FragmentResult]]:
+    results: list[FragmentResult] = []
     previous_hash = "fragment-start"
-    for position in range(len(packet["fragments"])):
-        stored = (
-            FragmentResult.model_validate_json(json.dumps(stored_fragments[position]))
-            if stored_fragments is not None
-            else None
-        )
+    for position in range(len(packet.fragments)):
+        stored = stored_fragments[position] if stored_fragments is not None else None
         result = checked_fragment(
             workspace, packet, brief, position, previous_hash, stored_result=stored
         )
@@ -1365,14 +1577,16 @@ def assembled_fragments(workspace, packet, brief, stored_fragments=None):
     edits = [edit for item in items for edit in item.edits]
     rules = list(dict.fromkeys(rule for item in items for rule in item.applied_rule_ids))
     if first.disposition == "narrated":
-        parts = []
-        beats = []
+        parts: list[str] = []
+        beats: list[Beat] = []
         offset = 0
         for item in items:
             if parts:
                 parts.append(" ")
                 offset += 1
                 beats[-1].end += 1
+            if item.normalized_text is None:
+                raise ValueError("narrated fragment has no normalized text")
             parts.append(item.normalized_text)
             beats.extend(
                 beat.model_copy(update={"start": beat.start + offset, "end": beat.end + offset})
@@ -1391,12 +1605,14 @@ def assembled_fragments(workspace, packet, brief, stored_fragments=None):
         combined = Disposition(
             id=first.id,
             disposition="excluded",
-            reason="; ".join(dict.fromkeys(item.reason for item in items)),
+            reason="; ".join(
+                dict.fromkeys(item.reason for item in items if item.reason is not None)
+            ),
             applied_rule_ids=rules,
         )
     result = Result(
         **{
-            key: packet[key]
+            key: packet.model_dump()[key]
             for key in (
                 "batch_id",
                 "attempt_id",
@@ -1412,35 +1628,36 @@ def assembled_fragments(workspace, packet, brief, stored_fragments=None):
         continuity=results[-1].result.continuity,
         issues=[],
     )
-    return result, [fragment.model_dump() for fragment in results]
+    return result, results
 
 
 @app.command()
-def combine_fragments(workspace: Path, batch_id: str):
+def combine_fragments(workspace: Path, batch_id: str) -> None:
     """Assemble a complete sequential fragment chain into one paragraph draft."""
     workspace = work_path(workspace)
     packet, brief = active_packet(workspace, batch_id)
     result, _ = assembled_fragments(workspace, packet, brief)
-    draft = Path(packet["draft_path"])
+    draft = Path(packet.draft_path)
     write_atomic(draft, result.model_dump())
     validate_result(workspace, draft)
     typer.echo(str(draft))
 
 
 @app.command()
-def abandon(workspace: Path, batch_id: str, reason: str):
+def abandon(workspace: Path, batch_id: str, reason: str) -> None:
     """Retire an attempt after checking that its worker has stopped."""
     workspace = work_path(workspace)
     active = workspace / "tasks" / batch_id / "active.json"
-    value = read_json(active)
+    value = ActiveTask.model_validate_json(active.read_text())
     write_atomic(
-        active.with_name(value["attempt_id"] + ".abandoned.json"), {**value, "reason": reason}
+        active.with_name(value.attempt_id + ".abandoned.json"),
+        {**value.model_dump(exclude_unset=True), "reason": reason},
     )
     active.unlink()
 
 
 @app.command()
-def validate(workspace: Path, draft: Path):
+def validate(workspace: Path, draft: Path) -> None:
     workspace = work_path(workspace)
     result, *_ = validate_result(workspace, draft)
     typer.echo(
@@ -1449,7 +1666,7 @@ def validate(workspace: Path, draft: Path):
 
 
 @app.command()
-def accept(workspace: Path, draft: Path, review_path: Path):
+def accept(workspace: Path, draft: Path, review_path: Path) -> None:
     """Commit a valid draft only with the main agent's source review record."""
     workspace = work_path(workspace)
     result, _, _, plan, brief, packet = validate_result(workspace, draft)
@@ -1465,21 +1682,24 @@ def accept(workspace: Path, draft: Path, review_path: Path):
     ):
         raise ValueError("review does not attest this exact result")
     required = {u.id for u in result.units if u.edits or u.disposition == "excluded"}
-    section_batches = [b for b in plan["batches"] if b["section_id"] == packet["section_id"]]
-    if section_batches[0]["id"] == result.batch_id:
+    section_batches = [b for b in plan.batches if b.section_id == packet.section_id]
+    if section_batches[0].id == result.batch_id:
         required.update(u.id for u in result.units)
     owned = {u.id for u in result.units}
     if set(review.reviewed_unit_ids) - owned or not required <= set(review.reviewed_unit_ids):
         raise ValueError("pilot, exclusions and editorial changes must be reviewed")
     target = workspace / "work" / (result.batch_id + ".json")
     if target.exists():
-        if read_json(target)["result_hash"] != digest:
+        if AcceptedBatch.model_validate_json(target.read_text()).result_hash != digest:
             raise ValueError("accepted batch cannot be overwritten")
     else:
-        if not active.exists() or read_json(active)["attempt_id"] != result.attempt_id:
+        if (
+            not active.exists()
+            or ActiveTask.model_validate_json(active.read_text()).attempt_id != result.attempt_id
+        ):
             raise ValueError("attempt is no longer active")
         fragment_results = (
-            assembled_fragments(workspace, packet, brief)[1] if packet.get("fragments") else []
+            assembled_fragments(workspace, packet, brief)[1] if packet.fragments else []
         )
         write_atomic(
             target,
@@ -1495,16 +1715,16 @@ def accept(workspace: Path, draft: Path, review_path: Path):
 
 
 @app.command()
-def status(workspace: Path):
+def status(workspace: Path) -> None:
     workspace = work_path(workspace)
     saved, _, plan, brief = load_workspace_state(workspace)
     records = load_accepted_batches(workspace, saved, plan)
-    cursors = {}
+    cursors: dict[str, str | None] = {}
     for section in brief.section_baselines:
         cursor = None
-        for batch in [b for b in plan["batches"] if b["section_id"] == section]:
-            if batch["id"] not in records:
-                cursor = batch["id"]
+        for batch in [b for b in plan.batches if b.section_id == section]:
+            if batch.id not in records:
+                cursor = batch.id
                 break
         cursors[section] = cursor
     typer.echo(
@@ -1512,7 +1732,7 @@ def status(workspace: Path):
             {
                 "accepted_batches": list(records),
                 "section_next_batch": cursors,
-                "complete": len(records) == len(plan["batches"]),
+                "complete": len(records) == len(plan.batches),
             },
             indent=2,
         )
@@ -1531,35 +1751,36 @@ def verify_exported_scripts(
 
 
 @app.command()
-def export(workspace: Path):
+def export(workspace: Path) -> None:
     """Compile complete accepted coverage in source order and verify round trips."""
     workspace = work_path(workspace)
     saved, units, plan, brief = load_workspace_state(workspace)
     records = load_accepted_batches(workspace, saved, plan)
-    if len(records) != len(plan["batches"]):
+    if len(records) != len(plan.batches):
         raise ValueError("source coverage incomplete")
     indexed = {u.id: u for u in units}
-    speeches = {}
-    coverage = []
+    speeches: dict[str, list[Speech]] = {}
+    coverage: list[Coverage] = []
     count = 0
-    for batch in plan["batches"]:
-        result = Result.model_validate_json(json.dumps(records[batch["id"]]["result"]))
+    for batch in plan.batches:
+        result = records[batch.id].result
         # Revalidate the original packet/result at export; reviews cannot bypass coverage.
-        draft = Path(
-            read_json(workspace / "tasks" / batch["id"] / (result.attempt_id + ".json"))[
-                "draft_path"
-            ]
+        packet = WorkerPacket.model_validate_json(
+            (workspace / "tasks" / batch.id / (result.attempt_id + ".json")).read_text()
         )
+        draft = Path(packet.draft_path)
         validate_result(workspace, draft, stored_result=result)
         for item in result.units:
             unit = indexed[item.id]
             coverage.append(
-                {"unit_id": item.id, "disposition": item.disposition, "reason": item.reason}
+                Coverage(unit_id=item.id, disposition=item.disposition, reason=item.reason)
             )
             if item.disposition != "narrated":
                 continue
             for beat in item.beats:
                 count += 1
+                if item.normalized_text is None:
+                    raise ValueError("narrated unit has no normalized text")
                 text = item.normalized_text[beat.start : beat.end].strip()
                 speech = Speech(
                     id=f"s{count:06d}",
@@ -1569,24 +1790,26 @@ def export(workspace: Path):
                     heading_level=unit.heading_level,
                 )
                 speeches.setdefault(unit.section_id, []).append(speech)
-                coverage[-1].setdefault("speech_spans", []).append(
-                    {
-                        "speech_id": speech.id,
-                        "start": beat.start,
-                        "end": beat.end,
-                        "score_move_ids": beat.score_move_ids,
-                        **({"action": beat.action} if beat.action else {"choice": beat.choice}),
-                        "proposed_parameters": beat.parameters.model_dump(),
-                    }
+                coverage[-1].speech_spans.append(
+                    SpeechSpan.model_validate(
+                        {
+                            "speech_id": speech.id,
+                            "start": beat.start,
+                            "end": beat.end,
+                            "score_move_ids": beat.score_move_ids,
+                            **({"action": beat.action} if beat.action else {"choice": beat.choice}),
+                            "proposed_parameters": beat.parameters,
+                        }
+                    )
                 )
-    files = []
-    script_by_section = {}
+    files: list[str] = []
+    script_by_section: dict[str, str] = {}
     for n, section in enumerate(
         (section for section in dict.fromkeys(u.section_id for u in units) if section in speeches),
         1,
     ):
         script = Script(
-            title=saved["title"],
+            title=saved.title,
             voices=brief.voices,
             defaults=brief.defaults,
             speech=speeches[section],
@@ -1598,39 +1821,42 @@ def export(workspace: Path):
         write_atomic(workspace / name, markdown)
         files.append(name)
         script_by_section[section] = name
-    prepared_manifest = json.loads((workspace / "prepared" / "manifest.json").read_text())
+    prepared_manifest = PreparedManifest.model_validate_json(
+        (workspace / "prepared" / "manifest.json").read_text()
+    )
     prepared_sections = sections(workspace / "prepared", prepared_manifest, units)
-    coverage_by_unit = {item["unit_id"]: item for item in coverage}
+    coverage_by_unit = {item.unit_id: item for item in coverage}
     speech_by_id = {speech.id: speech for values in speeches.values() for speech in values}
-    exported_sections = []
+    exported_sections: list[AdaptedSection] = []
     for section in prepared_sections:
-        record = section.model_dump()
+        record = AdaptedSection.model_validate(section.model_dump())
         if section.section_id in script_by_section:
-            record["script_file"] = script_by_section[section.section_id]
+            record.script_file = script_by_section[section.section_id]
         if section.delivery_chapter:
-            if section.start_unit_id != section.title_unit_id:
+            if section.title_unit_id is None or section.start_unit_id != section.title_unit_id:
                 raise ValueError(
                     "delivery chapter must start at its title unit: " + section.section_id
                 )
-            spans = coverage_by_unit[section.title_unit_id].get("speech_spans", [])
+            spans = coverage_by_unit[section.title_unit_id].speech_spans
             if len(spans) != 1:
                 raise ValueError(
                     "delivery title must normalize to exactly one speech record: "
                     + section.section_id
                 )
-            speech = speech_by_id[spans[0]["speech_id"]]
+            speech = speech_by_id[spans[0].speech_id]
             if speech.heading_level is None or len(speech.paragraphs) != 1:
                 raise ValueError(
                     "delivery title speech must remain a heading: " + section.section_id
                 )
-            record.update({"title_speech_id": speech.id, "normalized_title": speech.paragraphs[0]})
+            record.title_speech_id = speech.id
+            record.normalized_title = speech.paragraphs[0]
         exported_sections.append(record)
     write_atomic(workspace / "coverage.json", coverage)
     write_atomic(workspace / "sections.json", exported_sections)
     write_atomic(
         workspace / "manifest.json",
         {
-            **saved,
+            **saved.model_dump(exclude_unset=True),
             "script_files": files,
             "script_hashes": {name: sha256(workspace / name) for name in files},
             "coverage_hash": identity(coverage),

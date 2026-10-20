@@ -15,6 +15,9 @@ from urllib.parse import unquote, urlsplit
 
 from ebooklib import epub
 from lxml import etree
+
+# lxml documents _Element as its concrete element API; the leading underscore is upstream naming.
+from lxml.etree import _Element as Element  # pyright: ignore[reportPrivateUsage]
 from pydantic import Field
 
 from audiobooks.script_contract import Record
@@ -62,21 +65,29 @@ class EpubInventory(Record):
     navigation: list[NavigationNode]
 
 
+class RawNavigation(Record):
+    parent: int | None
+    level: int
+    label: str
+    target: str | None
+    location: str
+
+
 _whitespace_pattern = re.compile(r"\s+")
 
 
-def _element_text(node: etree._Element | None) -> str:
+def _element_text(node: Element | None) -> str:
     if node is None:
         return ""
     return _whitespace_pattern.sub(" ", "".join(node.itertext())).strip()
 
 
-def _local_name(node: etree._Element) -> str:
+def _local_name(node: Element) -> str:
     tag = str(node.tag)
     return tag.rsplit("}", 1)[-1].rsplit(":", 1)[-1]
 
 
-def _children_named(node: etree._Element, name: str) -> list[etree._Element]:
+def _children_named(node: Element, name: str) -> list[Element]:
     return [child for child in node if isinstance(child.tag, str) and _local_name(child) == name]
 
 
@@ -102,14 +113,14 @@ def normalize_target(
     return resource, fragment, issues
 
 
-def _parse_document(content: bytes) -> etree._Element:
+def _parse_document(content: bytes) -> Element:
     return etree.fromstring(
         content, parser=etree.XMLParser(recover=True, resolve_entities=False, no_network=True)
     )
 
 
-def _raw_nav_nodes(item: epub.EpubNav) -> list[dict]:
-    root = _parse_document(item.get_content())
+def _raw_nav_nodes(item: epub.EpubNav) -> list[RawNavigation]:
+    root = _parse_document(item.get_content() or b"")
     toc_nodes = root.xpath(
         ".//*[local-name()='nav' and " "(@*[local-name()='type']='toc' or @role='doc-toc')]"
     )
@@ -118,9 +129,9 @@ def _raw_nav_nodes(item: epub.EpubNav) -> list[dict]:
     ols = _children_named(toc_nodes[0], "ol")
     if not ols:
         return []
-    records: list[dict] = []
+    records: list[RawNavigation] = []
 
-    def walk(ol: etree._Element, parent: int | None, level: int, path: str) -> None:
+    def walk(ol: Element, parent: int | None, level: int, path: str) -> None:
         for position, li in enumerate(_children_named(ol, "li"), 1):
             label_node = next((child for child in li if _local_name(child) in {"a", "span"}), None)
             raw_target = (
@@ -130,13 +141,13 @@ def _raw_nav_nodes(item: epub.EpubNav) -> list[dict]:
             )
             index = len(records)
             records.append(
-                {
-                    "parent": parent,
-                    "level": level,
-                    "label": _element_text(label_node),
-                    "target": raw_target,
-                    "location": f"{item.file_name}:{path}/li[{position}]",
-                }
+                RawNavigation(
+                    parent=parent,
+                    level=level,
+                    label=_element_text(label_node),
+                    target=raw_target,
+                    location=f"{item.file_name}:{path}/li[{position}]",
+                )
             )
             nested = _children_named(li, "ol")
             if nested:
@@ -146,26 +157,26 @@ def _raw_nav_nodes(item: epub.EpubNav) -> list[dict]:
     return records
 
 
-def _raw_ncx_nodes(item: epub.EpubNcx) -> list[dict]:
-    root = _parse_document(item.get_content())
+def _raw_ncx_nodes(item: epub.EpubNcx) -> list[RawNavigation]:
+    root = _parse_document(item.get_content() or b"")
     maps = root.xpath(".//*[local-name()='navMap']")
     if not maps:
         return []
-    records: list[dict] = []
+    records: list[RawNavigation] = []
 
-    def walk(parent_node: etree._Element, parent: int | None, level: int, path: str) -> None:
+    def walk(parent_node: Element, parent: int | None, level: int, path: str) -> None:
         for position, point in enumerate(_children_named(parent_node, "navPoint"), 1):
             labels = point.xpath("./*[local-name()='navLabel']/*[local-name()='text']")
             contents = _children_named(point, "content")
             index = len(records)
             records.append(
-                {
-                    "parent": parent,
-                    "level": level,
-                    "label": _element_text(labels[0]) if labels else "",
-                    "target": contents[0].get("src") if contents else None,
-                    "location": f"{item.file_name}:{path}/navPoint[{position}]",
-                }
+                RawNavigation(
+                    parent=parent,
+                    level=level,
+                    label=_element_text(labels[0]) if labels else "",
+                    target=contents[0].get("src") if contents else None,
+                    location=f"{item.file_name}:{path}/navPoint[{position}]",
+                )
             )
             walk(point, index, level + 1, f"{path}/navPoint[{position}]")
 
@@ -197,10 +208,10 @@ def inventory_epub(path: Path) -> EpubInventory:
             )
         )
     reading_order_by_href = {item.href: item for item in reading_order}
-    document_by_href: dict[str, etree._Element | None] = {}
+    document_by_href: dict[str, Element | None] = {}
 
     def resolve_content_label(
-        target: etree._Element,
+        target: Element,
     ) -> tuple[str | None, str | None, int | None]:
         heading = (
             target
@@ -251,7 +262,7 @@ def inventory_epub(path: Path) -> EpubInventory:
             )
         if resource not in document_by_href:
             try:
-                document_by_href[resource] = _parse_document(item.get_content())
+                document_by_href[resource] = _parse_document(item.get_content() or b"")
             except etree.XMLSyntaxError:
                 document_by_href[resource] = None
         root = document_by_href[resource]
@@ -290,13 +301,13 @@ def inventory_epub(path: Path) -> EpubInventory:
         )
 
     nodes: list[NavigationNode] = []
-    navigation_sources: list[tuple[NavigationSource, epub.EpubItem, list[dict]]] = []
+    navigation_sources: list[tuple[NavigationSource, epub.EpubItem, list[RawNavigation]]] = []
     for item in book.get_items():
         if isinstance(item, epub.EpubNav):
             navigation_sources.append(("epub3-nav", item, _raw_nav_nodes(item)))
         elif isinstance(item, epub.EpubNcx):
             navigation_sources.append(("epub2-ncx", item, _raw_ncx_nodes(item)))
-    counters = {"epub3-nav": 0, "epub2-ncx": 0}
+    counters: dict[NavigationSource, int] = {"epub3-nav": 0, "epub2-ncx": 0}
     for source, item, raw_nodes in navigation_sources:
         index_to_id: dict[int, str] = {}
         for raw_index, raw_node in enumerate(raw_nodes):
@@ -305,9 +316,9 @@ def inventory_epub(path: Path) -> EpubInventory:
             index_to_id[raw_index] = node_id
             issues: list[str] = []
             resource = fragment = None
-            if raw_node["target"] is not None:
+            if raw_node.target is not None:
                 resource, fragment, normalization_issues = normalize_target(
-                    raw_node["target"], item.file_name
+                    raw_node.target, item.file_name
                 )
                 issues.extend(normalization_issues)
             (
@@ -327,11 +338,13 @@ def inventory_epub(path: Path) -> EpubInventory:
                     id=node_id,
                     ordinal=counters[source],
                     source=source,
-                    parent_id=index_to_id.get(raw_node["parent"]),
-                    level=raw_node["level"],
-                    source_location=raw_node["location"],
-                    raw_label=raw_node["label"],
-                    raw_target=raw_node["target"],
+                    parent_id=(
+                        index_to_id.get(raw_node.parent) if raw_node.parent is not None else None
+                    ),
+                    level=raw_node.level,
+                    source_location=raw_node.location,
+                    raw_label=raw_node.label,
+                    raw_target=raw_node.target,
                     resource_href=resource,
                     fragment=fragment,
                     resource_exists=resource_exists,

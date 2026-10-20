@@ -1,12 +1,18 @@
 """Physical generation spans; editorial text and semantic beats remain unchanged."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from chatterbox.models.tokenizers import EnTokenizer
 
 from audiobooks.sentences import sentence_spans
 
 
 def generation_spans(
-    text: str, tokenizer, token_limit: int, reviewed_clause_cuts: Sequence[int] = ()
+    text: str, tokenizer: EnTokenizer, token_limit: int, reviewed_clause_cuts: Sequence[int] = ()
 ) -> list[tuple[int, int]]:
     """Pack sentences using original Chatterbox counts and explicit reviewed cuts.
 
@@ -29,10 +35,10 @@ def generation_spans(
         raise ValueError("reviewed cuts must be ordered original offsets at word starts")
     boundaries = sorted({0, len(text), *cuts, *(start for start, _ in sentence_spans(text))})
 
-    def count(start, end):
+    def count(start: int, end: int) -> int:
         return int(tokenizer.text_to_tokens(punc_norm(text[start:end].strip())).shape[-1])
 
-    packed = []
+    packed: list[tuple[int, int]] = []
     start = boundaries[0]
     end = start
     for left, right in zip(boundaries, boundaries[1:]):

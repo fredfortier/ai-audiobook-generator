@@ -17,8 +17,10 @@ Every test must identify a concrete application failure it can detect beyond dec
 Follow the [test audit and admission criteria](../tests/README.md); nominal smoke checks,
 third-party library checks, and redundant model-type assertions are not accepted.
 
-Strict typing currently has a known backlog. Report its actual result; do not disable strictness,
-add ignored diagnostics, or replace record types with blanket `Any` to obtain a green result.
+Strict typing must pass with zero errors. Keep strictness enabled and use concrete application
+contracts. An inline exception is permitted only at an external-library boundary with the
+diagnostic, installed-source evidence, and justification recorded in
+[typing-boundaries.md](../docs/typing-boundaries.md).
 
 For bugs, include the command, revision, OS/Python versions, failure output, and the smallest
 input you have permission to share. For changes at a production boundary, include the relevant
