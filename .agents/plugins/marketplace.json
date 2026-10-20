@@ -1,0 +1,12 @@
+{
+  "name": "ai-audiobook-generator",
+  "interface": {"displayName": "AI Audiobook Generator"},
+  "plugins": [
+    {
+      "name": "ai-audiobook-generator",
+      "source": {"source": "local", "path": "./"},
+      "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+      "category": "Productivity"
+    }
+  ]
+}

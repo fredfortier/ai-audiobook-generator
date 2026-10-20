@@ -1,8 +1,11 @@
 [project]
 name = "audiobooks"
 version = "0.1.0"
-description = "Faithful source preparation, audiobook adaptation, and Chatterbox rendering"
+description = "AI audiobook generator: EPUB to audiobook with Chatterbox TTS and chaptered M4B export"
+keywords = ["ai-audiobook-generator", "epub-to-audiobook", "text-to-speech", "chatterbox", "m4b", "codex-plugin"]
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master",
@@ -17,6 +20,12 @@ dependencies = [
     "soundfile>=0.14.0",
     "typer>=0.27.2",
 ]
+
+[project.urls]
+Homepage = "https://fredfortier.github.io/ai-audiobook-generator/"
+Repository = "https://github.com/fredfortier/ai-audiobook-generator"
+Documentation = "https://fredfortier.github.io/ai-audiobook-generator/#install"
+Issues = "https://github.com/fredfortier/ai-audiobook-generator/issues"
 
 [build-system]
 requires = ["hatchling"]

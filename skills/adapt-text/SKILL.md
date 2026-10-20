@@ -7,9 +7,9 @@ description: Normalize and assign voices and original Chatterbox performance con
 
 Turn an admitted English prepared bundle into faithful, speakable scripts. Preserve wording, argument, quotations, paragraph lineage and genuine headings. Exclude all paratext by default, including substantive notes and translator introductions. Ask only about an unresolved reading or scope decision that affects fidelity.
 
-Run the helper from this repository with `uv run --locked python skills/adapt-text/scripts/adapt_text.py …`. From another directory use `uv run --project <repository> --locked python <absolute-helper-path> …`. Helpers do not call models.
+Resolve the plugin root as two directories above this skill directory; it contains `pyproject.toml`. Run `uv run --project <plugin-root> --locked python <plugin-root>/skills/adapt-text/scripts/adapt_text.py …` from any working directory. Helpers do not call models. Optional project role definitions live under `<plugin-root>/.codex/agents/`; plugin installation does not register them in the consuming project. When a role is unavailable, supply its bundled instructions and absolute reference paths explicitly, subject to the model-availability rules below.
 
-Use `$WORKSPACE_DIR/<book-name>/adaptation/` for adaptation work. If `WORKSPACE_DIR` is unset or empty, use this repository's `.workspace/`. The runtime resolves relative work paths below that directory. The default narrator binding is `assets/voices/enoch.wav`; keep that repository-relative path explicit in every voice registry unless the book requires another voice.
+Use `$WORKSPACE_DIR/<book-name>/adaptation/` for adaptation work. Set `WORKSPACE_DIR` to a persistent directory outside the plugin cache. If unset or empty, the fallback is the plugin root's `.workspace/`. The runtime resolves relative work paths below that directory. The default narrator binding is `assets/voices/enoch.wav`; keep that repository-relative path explicit in every voice registry unless the book requires another voice.
 
 Read the project's `WORKPAD.md` before adaptation and preserve its `Blueprint`. Update the `Material record` for consequential normalization or performance decisions, source surprises, material repairs, and requested revisions that change downstream work. Do not copy batch progress or machine records into it.
 
@@ -51,6 +51,6 @@ Changes require `revise <workspace> <new-prepared> <new-brief> <new-workspace>`.
 
 ## Export and handoff
 
-Read [script-format.md](references/script-format.md) before editing or emitting scripts. Run `export <workspace>` only with complete accepted coverage. It emits scripts in source order, a disposition/span ledger and `sections.json` binding each delivery section to its normalized title speech and script. Verify the main-text boundaries, explicit delivery starts and reported coverage against the source. Return script order, section bindings, voice bindings, exclusions, unresolved handoff conditions and pronunciation risks.
+Read [script-format.md](references/script-format.md) before editing or emitting scripts. Run `export <workspace>` only with complete accepted coverage. It emits scripts and their hashes in source order, a disposition/span ledger and `sections.json` binding each delivery section to its normalized title speech and script. Verify the main-text boundaries, explicit delivery starts and reported coverage against the source. Return script order, section bindings, voice bindings, exclusions, unresolved handoff conditions and pronunciation risks.
 
 Original-tokenizer segmentation and voice-file checks belong to the rendering handoff. If not performed, label them unverified. Audio generation, listening, mastering and acoustic-quality claims belong to `chatterbox`.

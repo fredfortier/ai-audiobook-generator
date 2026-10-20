@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Audiobook Generator — EPUB to Audiobook with Chatterbox TTS</title>
+  <meta name="description" content="Convert EPUB and HTML to expressive English audiobooks with local Chatterbox TTS, reference voices, reviewed narration, and chaptered M4B export. Includes a Codex plugin.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://fredfortier.github.io/ai-audiobook-generator/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="AI Audiobook Generator — EPUB to Audiobook with Chatterbox TTS">
+  <meta property="og:description" content="Faithful words. Expressive narration. Reviewed delivery. Convert EPUB and HTML into chaptered M4B audiobooks with Chatterbox TTS and Codex.">
+  <meta property="og:url" content="https://fredfortier.github.io/ai-audiobook-generator/">
+  <meta property="og:image" content="https://fredfortier.github.io/ai-audiobook-generator/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="AI Audiobook Generator: EPUB to audiobook, directed narration, and chaptered M4B export.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": ["SoftwareApplication", "SoftwareSourceCode"],
+    "name": "AI Audiobook Generator",
+    "description": "Convert EPUB and HTML to expressive English audiobooks with Chatterbox TTS, reviewed narration, and chaptered M4B export. Includes a Codex plugin.",
+    "url": "https://fredfortier.github.io/ai-audiobook-generator/",
+    "codeRepository": "https://github.com/fredfortier/ai-audiobook-generator",
+    "downloadUrl": "https://github.com/fredfortier/ai-audiobook-generator",
+    "applicationCategory": "MultimediaApplication",
+    "programmingLanguage": "Python",
+    "softwareVersion": "0.1.0",
+    "license": "https://github.com/fredfortier/ai-audiobook-generator/blob/main/LICENSE",
+    "image": "https://fredfortier.github.io/ai-audiobook-generator/assets/social-preview.png",
+    "author": {"@type": "Person", "name": "Frederic Fortier", "url": "https://github.com/fredfortier"}
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="./">AI Audiobook Generator</a>
+    <nav aria-label="Main navigation"><a href="#install">Install</a><a href="#how-it-works">How it works</a><a href="https://github.com/fredfortier/ai-audiobook-generator">GitHub ↗</a></nav>
+  </header>
+  <main>
+    <section class="hero">
+      <p class="eyebrow">LOCAL TEXT-TO-SPEECH · CODEX PLUGIN</p>
+      <h1>EPUB to audiobook.<br><span>Make the words act.</span></h1>
+      <p class="lead">AI Audiobook Generator turns EPUB and HTML into expressive English audiobooks with <strong>Chatterbox TTS</strong>, reference voices, and <strong>chaptered M4B export</strong>. Preserve the edition, direct its performance, and review the finished book.</p>
+      <div class="actions"><a class="button" href="#install">Install the Codex plugin</a><a href="https://github.com/fredfortier/ai-audiobook-generator#readme">Read the production guide ↗</a></div>
+      <p class="status">Development preview · Python 3.13 · English · Local execution</p>
+    </section>
+    <section aria-labelledby="features">
+      <h2 id="features">AI audiobook generation with source fidelity</h2>
+      <div class="cards">
+        <article><span class="number">01 / EDITION</span><h3>Keep the author's words</h3><p>Retain EPUB reading order, source locators, headings, and paragraph lineage. Record justified changes to the speech surface.</p></article>
+        <article><span class="number">02 / PERFORMANCE</span><h3>Direct the listener's experience</h3><p>Score the argument before synthesis: clarify, probe, convince, warn, invite, exalt, urge, and resolve. Keep direction out of spoken text.</p></article>
+        <article><span class="number">03 / DELIVERY</span><h3>Export chaptered M4B</h3><p>Resume verified audio segments, assemble lossless samples in order, and derive chapter positions from realized audio.</p></article>
+      </div>
+    </section>
+    <section id="how-it-works" class="split">
+      <div><p class="eyebrow">DIRECTED ORAL INTERPRETATION</p><h2>Give the argument a living voice.</h2></div>
+      <div><p>Some writing addresses a listener: it questions, invites, warns, persuades, or exhorts. Expressive narration can make those actions audible while preserving the text and its qualifications.</p><p>The director makes an edition-specific rhetorical score. Adaptation prepares faithful speech, Chatterbox renders the accepted performance, and editorial and listening review determine whether the delivery is ready.</p><p><a href="https://github.com/fredfortier/ai-audiobook-generator#why-expressive-ai-audiobook-narration">Read the business narrative, sources, and acting framework ↗</a></p></div>
+    </section>
+    <section id="install">
+      <p class="eyebrow">GET STARTED</p><h2>Install the AI audiobook generator in Codex</h2>
+      <pre><code>codex plugin marketplace add https://github.com/fredfortier/ai-audiobook-generator.git
+codex plugin add ai-audiobook-generator@ai-audiobook-generator</code></pre>
+      <p>Start a new Codex session. The plugin contains three skills: <code>preprocess-text</code>, <code>adapt-text</code>, and <code>chatterbox</code>.</p>
+      <p>Provision Python 3.13, uv, FFmpeg/ffprobe, English NLTK data, and an original Chatterbox model snapshot. A compatible CUDA GPU is recommended for production. Keep books and exports outside the plugin cache.</p>
+      <p><a href="https://github.com/fredfortier/ai-audiobook-generator#requirements-and-local-setup">Follow the complete setup instructions ↗</a></p>
+      <pre><code>Use preprocess-text to prepare my EPUB, adapt-text for faithful
+speech and reviewed rhetorical direction, then chatterbox for
+auditions and a reviewed chaptered M4B audiobook.</code></pre>
+    </section>
+    <section class="split" aria-labelledby="questions">
+      <div><h2 id="questions">Before your first audiobook</h2></div>
+      <div>
+        <h3>Which books can it process?</h3><p>The supported intake is EPUB or HTML, with English narration using original Chatterbox. The agent resolves edition scope and ambiguous source structure before adaptation.</p>
+        <h3>Does it clone a reference voice?</h3><p>Chatterbox uses reference-audio conditioning. The bundled Enoch recording is CC BY 4.0; source books and other recordings retain their own rights and terms.</p>
+        <h3>Is this a one-click converter?</h3><p>The workflow includes editorial decisions, auditions, and listening review. Automated validation establishes structure and content identities; it cannot certify acting or pronunciation.</p>
+        <h3>What is the current release status?</h3><p>This is a development preview. Strict type checking has a known backlog. See <a href="https://github.com/fredfortier/ai-audiobook-generator/actions">current checks</a> and <a href="https://github.com/fredfortier/ai-audiobook-generator/issues">tracked issues</a> before using it for production.</p>
+      </div>
+    </section>
+  </main>
+  <footer><p>AI Audiobook Generator · Frederic Fortier</p><p><a href="https://github.com/fredfortier/ai-audiobook-generator/blob/main/LICENSE">MIT code license</a> · <a href="https://github.com/fredfortier/ai-audiobook-generator/blob/main/assets/voices/README.md">Voice attribution</a> · <a href="https://github.com/fredfortier/ai-audiobook-generator/issues">Support and issues</a></p></footer>
+</body>
+</html>

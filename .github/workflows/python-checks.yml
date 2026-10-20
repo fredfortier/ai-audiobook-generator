@@ -1,0 +1,35 @@
+name: Python checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Tests
+        run: uv run python -m pytest -q
+      - name: Strict typing
+        if: ${{ !cancelled() }}
+        run: uv run basedpyright src tests
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: uv run ruff check .
+      - name: Formatting
+        if: ${{ !cancelled() }}
+        run: uv run black --check .

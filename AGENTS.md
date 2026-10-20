@@ -27,7 +27,6 @@ Follow this local discipline first:
 Use `$python-development`.
 
 * Python >= 3.12; strictly type every public function.
-* Use `typing` generics (`List`, `Dict`, `Tuple`, `Set`, `Optional`, etc.), not built-in generics.
 * Use Pydantic v2 models for runtime structures, not ad-hoc dictionaries or dataclasses.
 * Use Typer for CLIs, Loguru configured once for logging, and `pathlib.Path` for paths.
 * Prefer Unicode output. Black owns formatting at 100 columns; Pyright owns strict typing.

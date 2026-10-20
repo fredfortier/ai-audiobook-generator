@@ -1,4 +1,23 @@
-# Audiobooks as directed oral interpretation
+# AI Audiobook Generator — EPUB to Audiobook with Chatterbox TTS
+
+**Convert EPUB to audiobook** with expressive English narration, reference-voice conditioning,
+and **chaptered M4B export**. AI Audiobook Generator uses **Chatterbox TTS** for local
+text-to-speech and a **Codex plugin** to prepare EPUB or HTML books, direct their performance,
+and review the finished audiobook. It preserves the source wording and makes rhetorical
+direction, voice generation, and delivery traceable to the edition.
+
+**Status:** development preview · English · Python 3.13 · local execution required
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](pyproject.toml)
+
+![AI Audiobook Generator: EPUB to audiobook with Chatterbox TTS and chaptered M4B export](docs/assets/social-preview.png)
+
+[Install](#installation) · [Quick start](#quick-start) · [How it works](#the-domain-pipeline) ·
+[Documentation](https://fredfortier.github.io/ai-audiobook-generator/) · [Development](#development) ·
+[Issues](https://github.com/fredfortier/ai-audiobook-generator/issues)
+
+## Why expressive AI audiobook narration?
 
 > Some texts were made not only to be inspected on a page, but to act on a
 > gathered audience through a voice. Ancient letters moved between writing and “living voice,” and
@@ -30,6 +49,97 @@ Each arrow has a distinct owner and an inspectable artifact. The result is not a
 speech” converter. It is a production system for making faithful, rhetorically alive audiobooks
 whose words, interpretive decisions, generated audio, and final navigation remain traceable to the
 edition.
+
+## EPUB to audiobook features
+
+- Prepare EPUB or HTML while retaining edition, reading order, headings, and source locators.
+- Direct eight rhetorical actions with a source-exact score before adapting prose for speech.
+- Render with original English Chatterbox TTS and a reference voice; audition before full production.
+- Resume hash-verified segments and keep alternative performances in separate workspaces.
+- Assemble lossless audio and export chaptered M4B with verified metadata.
+- Require editorial and listening review before treating a delivery as complete.
+
+## Installation
+
+This is a local Codex plugin containing three skills and their Python helpers. Install it through
+its repository marketplace. Use a clean checkout, before creating environments or book work
+inside it; local installation copies the plugin directory. In that checkout:
+
+```sh
+codex plugin marketplace add .
+codex plugin add ai-audiobook-generator@ai-audiobook-generator
+```
+
+Install directly from the GitHub repository:
+
+```sh
+codex plugin marketplace add https://github.com/fredfortier/ai-audiobook-generator.git
+codex plugin add ai-audiobook-generator@ai-audiobook-generator
+```
+
+The commands above match Codex CLI 0.163.0. Check `codex plugin --help` for your installed version.
+You can also open `/plugins` in Codex and install **AI Audiobook Generator** from this marketplace.
+Start a new session after installing. The package uses the
+[official portable plugin layout](https://developers.openai.com/plugins/build/plugins):
+`plugin.json`, `skills/`, and `.agents/plugins/marketplace.json`. No MCP server is required.
+
+### Requirements and local setup
+
+Plugin installation registers the skills; the host still needs a local Python and audio toolchain.
+Use Python 3.13, [uv](https://docs.astral.sh/uv/), FFmpeg with `ffprobe`, and enough disk space for
+model weights and lossless audio. A compatible CUDA GPU is recommended for production; CPU and MPS
+are explicit renderer options and require their own auditions. Model downloads require internet
+access. No OpenAI API key is used by the Python helpers; Codex provides the agent session.
+
+From the installed plugin root (the parent of its `skills/` directory), or this checkout:
+
+```sh
+uv sync --locked
+uv run --locked python -m nltk.downloader -d "$HOME/.local/share/nltk_data" punkt_tab
+export NLTK_DATA="$HOME/.local/share/nltk_data"
+export WORKSPACE_DIR="$HOME/Audiobooks/work"
+export EXPORT_DIR="$HOME/Audiobooks/library"
+```
+
+Keep work and exports outside the installed plugin cache so updates preserve your books. The
+Python package is installed editably by `uv`; run the helpers through that same plugin root.
+Provision the five original Chatterbox model files at one explicit Hugging Face revision as
+specified in the [rendering skill](skills/chatterbox/SKILL.md). The checked-in Enoch reference voice
+is the current default and is distributed under [CC BY 4.0](assets/voices/README.md).
+
+## Quick start
+
+In Codex, ask:
+
+```text
+Use preprocess-text to prepare /absolute/path/book.epub for an English audiobook.
+Keep the edition and source provenance. Put this book under my WORKSPACE_DIR.
+Then use adapt-text for a reviewed rhetorical score and faithful speech adaptation.
+Audition representative passages with chatterbox before rendering the complete book.
+Deliver a reviewed chaptered M4B to my EXPORT_DIR.
+```
+
+| Skill | Input | Output |
+| --- | --- | --- |
+| `preprocess-text` | EPUB or HTML edition | Admitted source bundle with units and sections |
+| `adapt-text` | Admitted bundle and reviewed brief | Acting score, speech scripts, coverage ledger |
+| `chatterbox` | Accepted scripts and model snapshot | Auditions, verified segments, assembly, M4B |
+
+The agent asks for scope or editorial decisions when the source is ambiguous. You review the
+performance and listen to the final delivery. These are deliberate production checkpoints.
+
+To inspect the deterministic helpers without downloading or running a speech model:
+
+```sh
+uv run --locked python skills/preprocess-text/scripts/inspect_epub.py /absolute/path/book.epub
+uv run --locked python skills/adapt-text/scripts/adapt_text.py --help
+uv run --locked python skills/chatterbox/scripts/render.py --help
+```
+
+The optional [director](.codex/agents/text-director.toml) and
+[adapter](.codex/agents/text-adapter.toml) role definitions are project-local Codex configuration.
+Plugin installation does not register them as custom roles in another project. The adaptation
+skill explains how to supply their contracts explicitly and how to report unavailable models.
 
 ## Direction begins with the listener
 
@@ -214,8 +324,8 @@ their stage records.
 
 Set `EXPORT_DIR` to the finished-library root. Successful deliveries are exported as stable,
 source-derived M4B paths; named sibling performances can coexist as variants. See
-[`AGENTS.md`](AGENTS.md) for the workspace contract and the Chatterbox skill for final naming and
-verification.
+[`workspace/AGENTS.override.md`](workspace/AGENTS.override.md) for the editorial workspace contract
+and the Chatterbox skill for final naming and verification.
 
 ## Development
 
@@ -224,7 +334,10 @@ run through the checked-in lockfile:
 
 ```sh
 uv sync --locked
-uv run --locked python -m unittest discover -s tests
+uv run python -m pytest -q
+uv run basedpyright src tests
+uv run ruff check .
+uv run black --check .
 ```
 
 The command entry points under `skills/*/scripts/` expose schemas, status, validation, acceptance,
@@ -236,3 +349,40 @@ source admission, rhetorical direction, paragraph-preserving adaptation, origina
 generation, lossless assembly, M4B chapters, recovery, and evidence-bound export. That completed
 case demonstrates the architecture; it does not imply that an unseen edition, language, voice, or
 performance style can bypass its own admission, audition, and review.
+
+## Updating existing work
+
+Runtime and dependency hashes intentionally invalidate old render plans when the implementation
+changes. Keep earlier production workspaces intact and freeze a new plan after an update. Older
+adaptation exports lack script hashes: run the adaptation helper's `export <workspace>` command
+again to revalidate accepted work and bind its scripts before planning a new render. Directed
+revisions require a new reviewed score and adaptation; old score-move lineage is not carried over.
+
+## Limitations
+
+English narration and original Chatterbox are the supported scope. Automated validation proves
+structural properties and content identities; it does not certify interpretation, pronunciation,
+or listening quality. Generated book audio and private production records are not bundled. The
+Plotinus test fixture supports source and chapter checks; it is not a downloadable audiobook demo.
+
+Strict type checking currently reports a [known backlog](https://github.com/fredfortier/ai-audiobook-generator/issues/1); this development preview does not
+claim a clean typing gate. Tests, Ruff, and Black are separate checks.
+
+## Contributing
+
+Read [the contribution guide](.github/CONTRIBUTING.md) and [AGENTS.md](AGENTS.md), keep changes
+focused, and run the four development checks above. Report vulnerabilities through
+[private security reporting](.github/SECURITY.md).
+For a bug report, include the command, Python and OS versions, failure message, and a minimal input
+you have permission to share. Keep private books, voice recordings, and credentials out of issues.
+
+## License and credits
+
+Original project code and skill prose are licensed under [MIT](LICENSE). The bundled
+[Enoch reference recording](assets/voices/README.md) is licensed under CC BY 4.0. Dependencies,
+model weights, and source editions retain their own terms; EbookLib includes an AGPL notice.
+
+Built with [Chatterbox](https://github.com/resemble-ai/chatterbox),
+[EbookLib](https://github.com/aerkalov/ebooklib), [Pandoc](https://pandoc.org/),
+[Panflute](https://github.com/sergiocorreia/panflute), [NLTK](https://www.nltk.org/), and
+[FFmpeg](https://ffmpeg.org/). The retained Plotinus fixture includes its Project Gutenberg notice.
