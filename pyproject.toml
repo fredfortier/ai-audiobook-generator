@@ -55,7 +55,7 @@ line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "B009", "B010"]
+select = ["E4", "E7", "E9", "F", "I", "B009", "B010", "RUF059"]
 
 [tool.basedpyright]
 pythonVersion = "3.13"

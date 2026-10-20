@@ -329,6 +329,11 @@ and the Chatterbox skill for final naming and verification.
 
 ## Development
 
+[CI](https://github.com/fredfortier/ai-audiobook-generator/actions/workflows/python-checks.yml)
+runs tests, strict typing, Ruff, and Black as independent jobs on pushes to `master` and pull
+requests. The [test audit](tests/README.md) identifies the concrete failure each retained test
+must detect; nominal checks and assertions already guaranteed by types do not qualify.
+
 The project targets Python 3.13 and uses a locked `uv` environment. Repository commands should be
 run through the checked-in lockfile:
 

@@ -13,6 +13,10 @@ uv run ruff check .
 uv run black --check .
 ```
 
+Every test must identify a concrete application failure it can detect beyond declared types.
+Follow the [test audit and admission criteria](../tests/README.md); nominal smoke checks,
+third-party library checks, and redundant model-type assertions are not accepted.
+
 Strict typing currently has a known backlog. Report its actual result; do not disable strictness,
 add ignored diagnostics, or replace record types with blanket `Any` to obtain a green result.
 

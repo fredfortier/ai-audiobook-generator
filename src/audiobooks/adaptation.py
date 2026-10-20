@@ -755,7 +755,7 @@ def init(prepared: Path, brief_path: Path, workspace: Path):
 def direction_task(workspace: Path, section_ids: str | None = typer.Option(None, "--sections")):
     """Freeze a whole-short-work or complete-section packet for a semantic director."""
     workspace = work_path(workspace)
-    saved, units, plan, brief = load_workspace_state(workspace)
+    saved, units, _, brief = load_workspace_state(workspace)
     if brief.direction is None:
         raise ValueError("text brief has no direction context")
     if saved.get("acting_score_hash"):
@@ -838,7 +838,7 @@ def direction_task(workspace: Path, section_ids: str | None = typer.Option(None,
 
 
 def validate_score_draft(workspace: Path, draft: Path):
-    saved, units, plan, brief = load_workspace_state(workspace)
+    saved, units, _, brief = load_workspace_state(workspace)
     score = ScoreDraft.model_validate_json(draft.read_text())
     task_path = workspace / "direction" / "tasks" / (score.task_id + ".json")
     packet = read_json(task_path)
@@ -880,7 +880,7 @@ def validate_score(workspace: Path, draft: Path):
 def accept_score(workspace: Path, draft: Path, review_path: Path):
     """Accept reviewed direction and freeze the global score once coverage is complete."""
     workspace = work_path(workspace)
-    score, saved, units, brief, packet = validate_score_draft(workspace, draft)
+    score, saved, units, brief, _ = validate_score_draft(workspace, draft)
     review = ScoreReview.model_validate_json(review_path.read_text())
     digest = identity(score.model_dump())
     checks = (
@@ -1180,7 +1180,7 @@ def task(
 
 
 def active_packet(workspace: Path, batch_id: str):
-    saved, units, plan, brief = load_workspace_state(workspace)
+    saved, _, _, brief = load_workspace_state(workspace)
     active = read_json(workspace / "tasks" / batch_id / "active.json")
     packet = read_json(Path(active["packet_path"]))
     if packet["attempt_id"] != active["attempt_id"] or any(
@@ -1452,7 +1452,7 @@ def validate(workspace: Path, draft: Path):
 def accept(workspace: Path, draft: Path, review_path: Path):
     """Commit a valid draft only with the main agent's source review record."""
     workspace = work_path(workspace)
-    result, saved, units, plan, brief, packet = validate_result(workspace, draft)
+    result, _, _, plan, brief, packet = validate_result(workspace, draft)
     review = Review.model_validate_json(review_path.read_text())
     active = workspace / "tasks" / result.batch_id / "active.json"
     digest = identity(result.model_dump())
@@ -1497,7 +1497,7 @@ def accept(workspace: Path, draft: Path, review_path: Path):
 @app.command()
 def status(workspace: Path):
     workspace = work_path(workspace)
-    saved, units, plan, brief = load_workspace_state(workspace)
+    saved, _, plan, brief = load_workspace_state(workspace)
     records = load_accepted_batches(workspace, saved, plan)
     cursors = {}
     for section in brief.section_baselines:

@@ -54,7 +54,7 @@ def write_epub(path: Path, *, broken_fragments: bool = False) -> None:
 
 
 class EpubStructureTest(unittest.TestCase):
-    def test_inventory_preserves_both_navigation_sources_and_targetless_hierarchy(self):
+    def test_inventory_preserves_both_navigation_sources_and_targetless_hierarchy(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "both.epub"
             write_epub(path)
@@ -76,7 +76,7 @@ class EpubStructureTest(unittest.TestCase):
         self.assertEqual(nav[1].spine_ordinal, 1)
         self.assertTrue(ncx[0].fragment_exists)
 
-    def test_multiple_missing_fragments_remain_distinct_fail_stop_evidence(self):
+    def test_multiple_missing_fragments_remain_distinct_fail_stop_evidence(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "broken.epub"
             write_epub(path, broken_fragments=True)
@@ -90,7 +90,7 @@ class EpubStructureTest(unittest.TestCase):
         self.assertTrue(all(node.fragment_exists is False for node in nav_targets))
         self.assertTrue(all("target fragment is absent" in node.issues for node in nav_targets))
 
-    def test_target_normalization_rejects_external_and_package_escape(self):
+    def test_target_normalization_rejects_external_and_package_escape(self) -> None:
         self.assertEqual(
             normalize_target("https://example.test/ch1", "nav/toc.xhtml"),
             (None, None, ["external navigation target"]),
@@ -98,7 +98,3 @@ class EpubStructureTest(unittest.TestCase):
         resource, fragment, issues = normalize_target("../../outside.xhtml#x", "nav/toc.xhtml")
         self.assertEqual((resource, fragment), ("../outside.xhtml", "x"))
         self.assertIn("navigation target escapes package root", issues)
-
-
-if __name__ == "__main__":
-    unittest.main()

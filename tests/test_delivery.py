@@ -41,7 +41,7 @@ def write_delivery(
 
 
 class DeliveryTest(unittest.TestCase):
-    def test_chapter_title_review_capitalizes_minor_word_after_full_stop(self):
+    def test_chapter_title_review_capitalizes_minor_word_after_full_stop(self) -> None:
         with TemporaryDirectory() as directory:
             review = Path(directory) / "chapter-titles.json"
             source = "Man is spirit. The spirit of the lover is in the beloved"
@@ -61,7 +61,7 @@ class DeliveryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "consistent English title case"):
                 reviewed_chapter_titles(plan, review)
 
-    def test_chapter_title_review_rejects_inconsistent_minor_word_casing(self):
+    def test_chapter_title_review_rejects_inconsistent_minor_word_casing(self) -> None:
         with TemporaryDirectory() as directory:
             review = Path(directory) / "chapter-titles.json"
             review.write_text(
@@ -92,7 +92,7 @@ class DeliveryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "consistent English title case"):
                 reviewed_chapter_titles(plan, review)
 
-    def test_chapter_title_review_requires_contextual_evidence(self):
+    def test_chapter_title_review_requires_contextual_evidence(self) -> None:
         with TemporaryDirectory() as directory:
             review = Path(directory) / "chapter-titles.json"
             review.write_text(
@@ -123,30 +123,12 @@ class DeliveryTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "contextual evidence"):
                 reviewed_chapter_titles(plan, review)
 
-    def test_verified_delivery_exports_to_inferred_book_path(self):
-        with TemporaryDirectory() as directory:
-            root = Path(directory)
-            source = root / "delivery" / "book.m4b"
-            write_delivery(source, contents=b"verified audiobook")
-            export_directory = root / "exports"
-
-            with patch.dict(os.environ, {"EXPORT_DIR": str(export_directory)}, clear=True):
-                exported = delivery.export_m4b(source)
-
-            expected = (
-                export_directory
-                / "plotinus.an-essay-on-the-beautiful"
-                / "essay-on-the-beautiful.m4b"
-            )
-            self.assertEqual(exported, expected)
-            self.assertEqual(exported.read_bytes(), source.read_bytes())
-
-    def test_export_requires_configured_directory(self):
+    def test_export_requires_configured_directory(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(ValueError, "EXPORT_DIR"):
                 delivery.export_m4b(Path("book.m4b"))
 
-    def test_verified_variant_exports_beside_existing_base_delivery(self):
+    def test_verified_variant_exports_beside_existing_base_delivery(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "delivery" / "spirited.m4b"
@@ -165,7 +147,7 @@ class DeliveryTest(unittest.TestCase):
             self.assertEqual(exported.read_bytes(), source.read_bytes())
             self.assertEqual(base.read_bytes(), b"restrained audiobook")
 
-    def test_verified_variant_replaces_only_the_expected_existing_export(self):
+    def test_verified_variant_replaces_only_the_expected_existing_export(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "delivery" / "spirited.m4b"
@@ -189,7 +171,7 @@ class DeliveryTest(unittest.TestCase):
             self.assertEqual(exported, target)
             self.assertEqual(target.read_bytes(), source.read_bytes())
 
-    def test_export_rejects_unverified_delivery(self):
+    def test_export_rejects_unverified_delivery(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "book.m4b"
@@ -206,7 +188,7 @@ class DeliveryTest(unittest.TestCase):
                     delivery.export_m4b(source)
             self.assertFalse((root / "exports").exists())
 
-    def test_explicit_three_chapter_assembly_and_aac_m4b_round_trip(self):
+    def test_explicit_three_chapter_assembly_and_aac_m4b_round_trip(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             workspace = root / "render"
@@ -340,7 +322,3 @@ class DeliveryTest(unittest.TestCase):
             )
             self.assertEqual(manifest["probe"]["streams"][0]["codec_name"], "aac")
             self.assertEqual(manifest["input_audio_hash"], assembly_record["audio_hash"])
-
-
-if __name__ == "__main__":
-    unittest.main()

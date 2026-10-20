@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from audiobooks.adaptation import (
     ACTION_PARAMETERS,
+    Action,
     Beat,
     Brief,
     DirectionContext,
@@ -26,7 +27,7 @@ DEFAULT_PARAMETERS = Parameters(
 )
 
 
-def acting_score_fixture():
+def acting_score_fixture() -> tuple[Unit, Brief, list[DirectorMove]]:
     unit = Unit(
         id="u000001",
         ordinal=1,
@@ -70,7 +71,11 @@ def acting_score_fixture():
             user_cues=[cue],
         ),
     )
-    spans = [(0, 6, "Alpha", "CLARIFY"), (6, 10, "beta", "PROBE"), (10, 16, "gamma", "RESOLVE")]
+    spans: list[tuple[int, int, str, Action]] = [
+        (0, 6, "Alpha", "CLARIFY"),
+        (6, 10, "beta", "PROBE"),
+        (10, 16, "gamma", "RESOLVE"),
+    ]
     moves = [
         DirectorMove(
             id=f"m{position:06d}",
@@ -87,7 +92,7 @@ def acting_score_fixture():
 
 
 class ActingScoreTest(unittest.TestCase):
-    def test_removed_letter_calls_do_not_reject_authored_letters(self):
+    def test_removed_letter_calls_do_not_reject_authored_letters(self) -> None:
         for source, call, normalized in [
             ("Trutha is a good beginning.", "a", "Truth is a good beginning."),
             ("Bodyb is beloved.", "b", "Body is beloved."),
@@ -130,7 +135,7 @@ class ActingScoreTest(unittest.TestCase):
                 )
                 check_disposition(disposition, unit, brief, [move])
 
-    def test_retained_letter_call_is_rejected_at_its_source_position(self):
+    def test_retained_letter_call_is_rejected_at_its_source_position(self) -> None:
         source = "Trutha is a good beginning."
         unit, brief, _ = acting_score_fixture()
         unit = unit.model_copy(
@@ -166,7 +171,7 @@ class ActingScoreTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "retained citation call"):
                     check_disposition(disposition, unit, brief, [move])
 
-    def test_removed_numeric_call_does_not_match_brackets_or_spacing(self):
+    def test_removed_numeric_call_does_not_match_brackets_or_spacing(self) -> None:
         for source, normalized in [
             ("She [lost her] [128] virginity.", "She lost her virginity."),
             (
@@ -189,7 +194,7 @@ class ActingScoreTest(unittest.TestCase):
                 self.assertFalse(retained_note_call(unit, normalized))
                 self.assertTrue(retained_note_call(unit, source))
 
-    def test_removed_reference_punctuation_is_not_a_retained_call(self):
+    def test_removed_reference_punctuation_is_not_a_retained_call(self) -> None:
         source = "St Paul speaks (cf. John 1:5)."
         unit, _, _ = acting_score_fixture()
         unit = unit.model_copy(
@@ -198,12 +203,15 @@ class ActingScoreTest(unittest.TestCase):
         self.assertFalse(retained_note_call(unit, "Saint Paul speaks."))
         self.assertTrue(retained_note_call(unit, "Saint Paul speaks (cf. John 1:5)."))
 
-    def test_moves_cover_source_with_registered_actions_and_local_evidence(self):
+    def test_score_rejects_source_gaps_and_evidence_outside_move(self) -> None:
         unit, brief, moves = acting_score_fixture()
-        self.assertEqual(check_score_moves(moves, [unit], brief), moves)
 
         with self.assertRaisesRegex(ValueError, "partition"):
-            check_score_moves([moves[0].model_copy(update={"start": 1}), *moves[1:]], [unit], brief)
+            check_score_moves(
+                [moves[0].model_copy(update={"start": 1, "textual_evidence": "lpha"}), *moves[1:]],
+                [unit],
+                brief,
+            )
         with self.assertRaisesRegex(ValueError, "outside its move"):
             check_score_moves(
                 [moves[0].model_copy(update={"textual_evidence": "gamma"}), *moves[1:]],
@@ -211,17 +219,13 @@ class ActingScoreTest(unittest.TestCase):
                 brief,
             )
 
-    def test_move_rejects_unregistered_or_intransitive_direction(self):
+    def test_move_rejects_objective_without_listener_action(self) -> None:
         _, _, moves = acting_score_fixture()
         move_fields = moves[0].model_dump()
-        with self.assertRaises(ValidationError):
-            DirectorMove(**{**move_fields, "action": "MYSTIFY"})
         with self.assertRaisesRegex(ValidationError, "listener objective"):
             DirectorMove(**{**move_fields, "objective": "Be mystical."})
-        with self.assertRaises(ValidationError):
-            DirectorMove(**{**move_fields, "intensity": "high"})
 
-    def test_directed_beats_derive_vectors_from_actions_and_preserve_lineage(self):
+    def test_directed_beats_derive_vectors_from_actions_and_preserve_lineage(self) -> None:
         unit, brief, moves = acting_score_fixture()
         disposition = Disposition(
             id=unit.id,
@@ -287,7 +291,7 @@ class ActingScoreTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "omit or reorder"):
             check_disposition(omitted, unit, brief, moves)
 
-    def test_directed_calibration_binds_action_moves_and_both_vectors(self):
+    def test_directed_calibration_binds_action_moves_and_both_vectors(self) -> None:
         proposed = ACTION_PARAMETERS["CLARIFY"]
         realized = proposed.model_copy(update={"exaggeration": 0.6, "cfg_weight": 0.4})
         evidence = CalibrationEvidence(
@@ -319,7 +323,3 @@ class ActingScoreTest(unittest.TestCase):
                 {"s000001": realized},
                 True,
             )
-
-
-if __name__ == "__main__":
-    unittest.main()

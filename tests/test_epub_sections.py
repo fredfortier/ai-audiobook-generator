@@ -96,7 +96,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
         write_epub(path, **kwargs)
         return path, inventory_epub(path)
 
-    def test_agreeing_nav_ncx_many_fragments_and_navigation_projection(self):
+    def test_agreeing_nav_ncx_many_fragments_and_navigation_projection(self) -> None:
         body = (
             '<section id="one"><h1>Chapter One</h1><p>A.</p></section><div id="two"><p>B.</p></div>'
         )
@@ -117,7 +117,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
         self.assertEqual(result.boundaries[1].title, "Chapter Two")
         self.assertLess(result.boundaries[0].dom_ordinal, result.boundaries[1].dom_ordinal)
 
-    def test_targetless_parent_path_and_stacked_hierarchy_are_preserved(self):
+    def test_targetless_parent_path_and_stacked_hierarchy_are_preserved(self) -> None:
         body = '<section id="start"><h2>Chapter One</h2><p>A.</p></section>'
         nested_nav = navigation_entry("Chapter One", "start")
         nav_entries = f"<li><span>Part I</span><ol>{nested_nav}</ol></li>"
@@ -152,7 +152,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
         result3 = select_sections(inventory3, epub_path=path3)
         self.assertEqual(result3.boundaries[1].parent_section_id, result3.boundaries[0].section_id)
 
-    def test_material_source_or_content_label_disagreement_blocks(self):
+    def test_material_source_or_content_label_disagreement_blocks(self) -> None:
         body = '<section id="one"><h1>A Different Work</h1></section><section id="two"><h1>Second</h1></section>'
         path, inventory = self.create_epub(
             body=body,
@@ -166,7 +166,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
             any("navigation/content title materially differs" in issue for issue in result.issues)
         )
 
-    def test_single_missing_fragment_degrades_but_multiple_missing_fragments_block(self):
+    def test_single_missing_fragment_degrades_but_multiple_missing_fragments_block(self) -> None:
         body = "<h1>Opening</h1><p>Body.</p>"
         path, inventory = self.create_epub(
             body=body, nav_entries=navigation_entry("Opening", "missing")
@@ -191,7 +191,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
         self.assertEqual(result2.status, "blocked")
         self.assertTrue(any("multiple unresolved fragments" in issue for issue in result2.issues))
 
-    def test_structural_fallback_requires_semantics_or_section_plus_heading(self):
+    def test_structural_fallback_requires_semantics_or_section_plus_heading(self) -> None:
         body = """<section id="one" epub:type="chapter"><h1>One</h1><p>A.</p></section>
 <section id="two"><h1>Two</h1><p>B.</p></section>
 <h1 id="false">Decorative Heading</h1><span epub:type="pagebreak" id="p1">1</span>
@@ -206,7 +206,9 @@ class EpubSectionSelectionTest(unittest.TestCase):
         self.assertIn("Three", rejected)
         self.assertTrue(any("page-break" in (item.rejection_reason or "") for item in candidates))
 
-    def test_deficient_navigation_yields_to_stronger_repeated_structure_and_ignores_nonlinear(self):
+    def test_deficient_navigation_yields_to_stronger_repeated_structure_and_ignores_nonlinear(
+        self,
+    ) -> None:
         body = (
             '<section id="one" epub:type="chapter"><h1>One</h1></section>'
             '<section id="two" epub:type="chapter"><h1>Two</h1></section>'
@@ -219,7 +221,7 @@ class EpubSectionSelectionTest(unittest.TestCase):
         self.assertEqual([item.title for item in result.boundaries], ["One", "Two"])
         self.assertTrue(all(item.resource_href == "book.xhtml" for item in result.boundaries))
 
-    def test_calibre_candidate_requires_and_records_content_corroboration(self):
+    def test_calibre_candidate_requires_and_records_content_corroboration(self) -> None:
         body = '<div id="chapter-one"><h1>One</h1><p>A.</p></div>'
         path, inventory = self.create_epub(body=body)
         self.assertEqual(select_sections(inventory, epub_path=path).status, "blocked")
@@ -241,15 +243,20 @@ class EpubSectionSelectionTest(unittest.TestCase):
             any(item.source_kind == "calibre-candidate" for item in result.boundaries[0].evidence)
         )
 
-    def test_epub_two_ncx_only_is_primary(self):
+    def test_package_version_selects_primary_navigation_when_both_sources_exist(self) -> None:
         body = '<section id="one"><h1>One</h1></section>'
-        path, inventory = self.create_epub(
-            body=body, ncx_entries=ncx_entry("One", "one"), version="2.0"
-        )
-        result = select_sections(inventory, epub_path=path)
-        self.assertEqual((result.status, result.primary_source), ("ready", "epub2-ncx"))
+        for version, expected in [("2.0", "epub2-ncx"), ("3.0", "epub3-nav")]:
+            with self.subTest(version=version):
+                path, inventory = self.create_epub(
+                    body=body,
+                    nav_entries=navigation_entry("One", "one"),
+                    ncx_entries=ncx_entry("One", "one"),
+                    version=version,
+                )
+                result = select_sections(inventory, epub_path=path)
+                self.assertEqual((result.status, result.primary_source), ("ready", expected))
 
-    def test_one_boundary_per_linear_resource_preserves_reading_order(self):
+    def test_one_boundary_per_linear_resource_preserves_reading_order(self) -> None:
         entries = navigation_entry("One", "one") + '<li><a href="second.xhtml#two">Two</a></li>'
         path, inventory = self.create_epub(
             body='<section id="one"><h1>One</h1></section>',
@@ -263,13 +270,14 @@ class EpubSectionSelectionTest(unittest.TestCase):
             [("book.xhtml", 1), ("second.xhtml", 2)],
         )
 
-    def test_selection_identity_is_deterministic(self):
-        body = '<section id="one" epub:type="chapter"><h1>One</h1></section>'
-        path, inventory = self.create_epub(body=body, nav_entries=navigation_entry("One", "one"))
-        first = select_sections(inventory, epub_path=path).model_dump(mode="json")
-        second = select_sections(inventory_epub(path), epub_path=path).model_dump(mode="json")
-        self.assertEqual(first, second)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        reversed_entries = '<li><a href="second.xhtml#two">Two</a></li>' + navigation_entry(
+            "One", "one"
+        )
+        reversed_path, reversed_inventory = self.create_epub(
+            body='<section id="one"><h1>One</h1></section>',
+            nav_entries=reversed_entries,
+            second_body='<section id="two"><h1>Two</h1></section>',
+        )
+        reversed_result = select_sections(reversed_inventory, epub_path=reversed_path)
+        self.assertEqual(reversed_result.status, "blocked")
+        self.assertTrue(any("not monotonic" in issue for issue in reversed_result.issues))

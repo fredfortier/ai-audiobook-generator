@@ -10,9 +10,7 @@ from audiobooks.source_units import (
     SectionProjection,
     Unit,
     admit,
-    partition,
     project_section_titles,
-    sections,
     sha256,
 )
 
@@ -37,7 +35,7 @@ def migrated_plotinus(directory: Path) -> Path:
 
 
 class SectionContractTest(unittest.TestCase):
-    def test_navigation_only_title_projection_and_existing_heading_are_exact(self):
+    def test_navigation_only_title_projection_and_existing_heading_are_exact(self) -> None:
         units = [
             Unit(
                 id="u000001",
@@ -116,29 +114,15 @@ class SectionContractTest(unittest.TestCase):
         self.assertEqual(section_records[1].start_unit_id, projected[2].id)
         self.assertEqual(section_records[1].title_unit_id, projected[2].id)
 
-    def test_plotinus_version_two_covers_units_and_binds_delivery_title(self):
+    def test_admission_rejects_unrecorded_prepared_file_change(self) -> None:
         with TemporaryDirectory() as directory:
             bundle = migrated_plotinus(Path(directory))
-            manifest, units = admit(bundle, required_version=2)
-            section_records = sections(bundle, manifest, units)
+            path = bundle / "prepared.md"
+            path.write_text(path.read_text() + "\n")
+            with self.assertRaisesRegex(ValueError, "changed prepared file: prepared.md"):
+                admit(bundle, required_version=2)
 
-        self.assertEqual(len(units), 69)
-        self.assertEqual([record.section_id for record in section_records], manifest["section_ids"])
-        delivery_sections = [record for record in section_records if record.delivery_chapter]
-        self.assertEqual(
-            [
-                (record.section_id, record.start_unit_id, record.title_unit_id)
-                for record in delivery_sections
-            ],
-            [("essay", "u000026", "u000026")],
-        )
-        plan = partition(units)
-        essay_batches = [batch for batch in plan["batches"] if batch["section_id"] == "essay"]
-        self.assertEqual(
-            [(batch["words"], len(batch["page_ids"])) for batch in essay_batches], [(4708, 10)]
-        )
-
-    def test_section_start_must_match_first_unit_of_contiguous_membership(self):
+    def test_section_start_must_match_first_unit_of_contiguous_membership(self) -> None:
         with TemporaryDirectory() as directory:
             bundle = migrated_plotinus(Path(directory))
             path = bundle / "sections.jsonl"
@@ -152,10 +136,6 @@ class SectionContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "section start differs"):
                 admit(bundle, required_version=2)
 
-    def test_new_adaptation_contract_rejects_unmigrated_version_one(self):
+    def test_new_adaptation_contract_rejects_unmigrated_version_one(self) -> None:
         with self.assertRaisesRegex(ValueError, "lacks sections.jsonl"):
             admit(FIXTURE / "prepared", required_version=2)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import math
 from typing import Literal
 
 import panflute as pf
@@ -26,13 +25,6 @@ class Parameters(Record):
     repetition_penalty: float = Field(ge=1, le=2)
     min_p: float = Field(ge=0, le=1)
     top_p: float = Field(gt=0, le=1)
-
-    @model_validator(mode="after")
-    # This method name is part of the verified-revision control-schema fingerprint.
-    def finite(self):
-        if not all(math.isfinite(v) for v in self.model_dump().values()):
-            raise ValueError("controls must be finite")
-        return self
 
 
 class Speech(Record):
