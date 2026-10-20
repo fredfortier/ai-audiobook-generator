@@ -1,0 +1,3 @@
+interface:
+  display_name: "Chatterbox"
+  short_description: "Calibrate, render, and review faithful audiobook audio"
