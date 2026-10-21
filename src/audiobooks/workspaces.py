@@ -5,13 +5,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = (
+    Path(__file__).resolve().parents[2]
+    if (Path(__file__).resolve().parents[2] / "pyproject.toml").is_file()
+    else Path(__file__).resolve().parent / "data"
+)
 
 
 def workspace_dir() -> Path:
-    """Return the configured shared work directory or this repository's local default."""
+    """Return a persistent work directory outside installed plugin and tool caches."""
     configured = os.environ.get("WORKSPACE_DIR", "").strip()
-    directory = Path(configured).expanduser() if configured else REPOSITORY_ROOT / ".workspace"
+    directory = Path(configured).expanduser() if configured else Path.home() / "Audiobooks" / "work"
     return directory.resolve()
 
 

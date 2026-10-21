@@ -65,8 +65,8 @@
       <pre><code>codex plugin marketplace add https://github.com/fredfortier/ai-audiobook-generator.git
 codex plugin add ai-audiobook-generator@ai-audiobook-generator</code></pre>
       <p>Start a new Codex session. The plugin contains three skills: <code>preprocess-text</code>, <code>adapt-text</code>, and <code>chatterbox</code>.</p>
-      <p>Provision Python 3.13, uv, FFmpeg/ffprobe, English NLTK data, and an original Chatterbox model snapshot. A compatible CUDA GPU is recommended for production. Keep books and exports outside the plugin cache.</p>
-      <p><a href="https://github.com/fredfortier/ai-audiobook-generator#requirements-and-local-setup">Follow the complete setup instructions ↗</a></p>
+      <p>Requires uv. The skills run one shared project; Python, Pandoc, English Punkt data, and FFmpeg/ffprobe are provided automatically. First use downloads dependencies and model weights. A compatible CUDA GPU is recommended. Books default to ~/Audiobooks/work/, outside the plugin cache.</p>
+      <p><a href="https://github.com/fredfortier/ai-audiobook-generator#runtime">Follow the complete setup instructions ↗</a></p>
       <pre><code>Use preprocess-text to prepare my EPUB, adapt-text for faithful
 speech and reviewed rhetorical direction, then chatterbox for
 auditions and a reviewed chaptered M4B audiobook.</code></pre>

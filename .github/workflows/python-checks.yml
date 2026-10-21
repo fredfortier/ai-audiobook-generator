@@ -33,8 +33,5 @@ jobs:
           enable-cache: true
       - name: Install locked dependencies
         run: uv sync --locked
-      - name: Install FFmpeg
-        if: matrix.check == 'Tests'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Run ${{ matrix.check }}
         run: uv run --no-sync ${{ matrix.command }}

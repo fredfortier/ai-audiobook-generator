@@ -83,29 +83,44 @@ Start a new session after installing. The package uses the
 [official portable plugin layout](https://developers.openai.com/plugins/build/plugins):
 `plugin.json`, `skills/`, and `.agents/plugins/marketplace.json`. No MCP server is required.
 
-### Requirements and local setup
+### Runtime
 
-Plugin installation registers the skills; the host still needs a local Python and audio toolchain.
-Use Python 3.13, [uv](https://docs.astral.sh/uv/), FFmpeg with `ffprobe`, and enough disk space for
-model weights and lossless audio. A compatible CUDA GPU is recommended for production; CPU and MPS
-are explicit renderer options and require their own auditions. Model downloads require internet
-access. No OpenAI API key is used by the Python helpers; Codex provides the agent session.
-
-From the installed plugin root (the parent of its `skills/` directory), or this checkout:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) before using the plugin.
+The skills resolve their installed location and run the shared locked project:
 
 ```sh
-uv sync --locked
-uv run --locked python -m nltk.downloader -d "$HOME/.local/share/nltk_data" punkt_tab
-export NLTK_DATA="$HOME/.local/share/nltk_data"
-export WORKSPACE_DIR="$HOME/Audiobooks/work"
-export EXPORT_DIR="$HOME/Audiobooks/library"
+uv run --project "<skill-root>/../.." --locked --no-dev audiobooks …
 ```
 
-Keep work and exports outside the installed plugin cache so updates preserve your books. The
-Python package is installed editably by `uv`; run the helpers through that same plugin root.
-Provision the five original Chatterbox model files at one explicit Hugging Face revision as
-specified in the [rendering skill](skills/chatterbox/SKILL.md). The checked-in Enoch reference voice
-is the current default and is distributed under [CC BY 4.0](assets/voices/README.md).
+uv supplies Python 3.13 and Python dependencies. Pandoc is bundled by `pypandoc-binary`;
+NLTK obtains missing English Punkt data with its native downloader; `static-ffmpeg` obtains
+FFmpeg and ffprobe automatically. No separate toolchain installation or resource-path setup
+is needed. First use requires internet and disk space for dependencies and model weights.
+A compatible CUDA GPU is recommended; CPU and MPS are explicit renderer options.
+
+Book work defaults to `~/Audiobooks/work/`. Optionally set `WORKSPACE_DIR` to another persistent
+location. Set `EXPORT_DIR` to your finished library before exporting. Keep both outside plugin caches.
+
+### Other agents: manual installation
+
+From a checkout, install the shared CLI, then install the three skills with
+[Skills CLI](https://github.com/vercel-labs/skills) (requires Node.js):
+
+```sh
+uv tool install --python 3.13 /absolute/path/to/ai-audiobook-generator
+npx skills add /absolute/path/to/ai-audiobook-generator --global --skill preprocess-text adapt-text chatterbox
+```
+
+Choose your agent when prompted. Alternatively, copy the skill folders:
+
+```sh
+mkdir -p ~/.agents/skills
+cp -R /absolute/path/to/ai-audiobook-generator/skills/. ~/.agents/skills/
+```
+
+Separately installed skills use `audiobooks …`; `audiobooks runtime-root` locates the bundled
+voice, workspace contract, and optional role instructions. If the command is absent from `PATH`,
+run it by its absolute path under `uv tool dir --bin`.
 
 ## Quick start
 
@@ -146,8 +161,8 @@ uv run --locked audiobooks render --help
 
 Use `--help` on any group or command for its arguments. `uv run --locked audiobooks completion bash`
 prints Bash completion; `zsh` and `fish` are also supported. Completion generation accepts the shell
-explicitly and works from agent runtimes and CI. Add the plugin's `.venv/bin` to your shell's `PATH`
-before loading the generated script so its `audiobooks` callback resolves to this environment.
+explicitly and works from agent runtimes and CI. Shell completion requires the installed
+`audiobooks` command on `PATH`.
 
 The optional [director](.codex/agents/text-director.toml) and
 [adapter](.codex/agents/text-adapter.toml) role definitions are project-local Codex configuration.
@@ -272,53 +287,26 @@ certify acting, classical pronunciation, or polish. A book is complete only when
 artifact—not merely its scripts or WAV inventory—passes the relevant checks and is exported or has
 an explicit no-export decision.
 
-## Architecture: evidence at every boundary
+## Architecture
 
-The core invariant is stronger than “all commands succeeded”:
+Content hashes bind source units, reviewed scripts, render requests, and saved audio. Changed inputs invalidate reuse; validation failures block the affected stage.
 
-> The delivered audiobook accounts for every admitted source unit exactly once, preserves every
-> narrated word under reviewed speech-surface edits, and realizes only reviewed direction and
-> generation decisions.
+| Modules | Responsibility |
+| --- | --- |
+| [`epub_structure`](src/audiobooks/epub_structure.py), [`epub_sections`](src/audiobooks/epub_sections.py) | EPUB reading order and section evidence |
+| [`source_units`](src/audiobooks/source_units.py) | Source admission, provenance, and work partitioning |
+| [`adaptation`](src/audiobooks/adaptation.py) | Briefs, acting scores, acceptance, revisions, and script export |
+| [`script_contract`](src/audiobooks/script_contract.py) | Typed script records and Markdown codec |
+| [`segmentation`](src/audiobooks/segmentation.py), [`rendering`](src/audiobooks/rendering.py) | Token limits, frozen generation requests, and verified segment recovery |
+| [`assembly`](src/audiobooks/assembly.py), [`delivery`](src/audiobooks/delivery.py) | Sample-preserving assembly, M4B encoding, metadata verification, and export |
 
-The architecture makes that invariant observable:
-
-| Boundary | Human/agent judgment owns | Code owns | Failure behavior |
-| --- | --- | --- | --- |
-| Source admission | Edition scope, real sections, body/paratext ambiguity | hashes, reading order, locators, exact coverage | block on damaged or ambiguous source |
-| Direction | Throughline, listener action, meaningful move boundaries | source identity, offsets, action vocabulary, complete coverage | reject stale or structurally invalid scores |
-| Adaptation | Faithful readings, justified edits, voices, semantic beats | packet ownership, span arithmetic, vector derivation, ordered acceptance | return precise unresolved units; never guess |
-| Rendering | Audition choice, pronunciation, pacing, perceptual quality | tokenizer counts, frozen requests, hashes, resumable verification | regenerate only the changed or failed request |
-| Delivery | Joins, gaps, chapter coherence, final listening approval | sample order, times, codec/metadata checks, atomic export | withhold completion/export |
-
-The repository uses strict Pydantic records and content identities instead of a service framework.
-The main package boundaries follow the domain:
-
-- [`epub_structure.py`](src/audiobooks/epub_structure.py) and
-  [`epub_sections.py`](src/audiobooks/epub_sections.py) preserve EPUB reading and navigation
-  evidence.
-- [`source_units.py`](src/audiobooks/source_units.py) admits prepared bundles and partitions owned
-  work without losing source order.
-- [`adaptation.py`](src/audiobooks/adaptation.py) owns briefs, acting scores, review records,
-  revisions, acceptance, and script export.
-- [`script_contract.py`](src/audiobooks/script_contract.py) is the single canonical Markdown/script
-  codec.
-- [`segmentation.py`](src/audiobooks/segmentation.py) and
-  [`rendering.py`](src/audiobooks/rendering.py) turn accepted speech into frozen, recoverable
-  original-Chatterbox requests.
-- [`assembly.py`](src/audiobooks/assembly.py) and
-  [`delivery.py`](src/audiobooks/delivery.py) own sample-accurate assembly, M4B metadata, encoding,
-  and library export.
-
-Skill documents are the operational interfaces for the three major responsibilities:
-[`preprocess-text`](skills/preprocess-text/SKILL.md),
-[`adapt-text`](skills/adapt-text/SKILL.md), and
-[`chatterbox`](skills/chatterbox/SKILL.md). The fuller completion and evidence contract lives in
-[`skills/adapt-text/SPEC.md`](skills/adapt-text/SPEC.md).
+See the [production specification](skills/adapt-text/SPEC.md) for cross-stage invariants and
+acceptance conditions.
 
 ## Project workspaces
 
-Generated books do not live beside source code. Set `WORKSPACE_DIR`, or allow the repository to use
-`.workspace`, and give each book one short, familiar directory name:
+Generated books do not live beside source code. Set `WORKSPACE_DIR`, or use the default
+`~/Audiobooks/work/`, and give each book one short, familiar directory name:
 
 ```text
 $WORKSPACE_DIR/<book-name>/
@@ -342,35 +330,10 @@ and the Chatterbox skill for final naming and verification.
 
 ## Development
 
-[CI](https://github.com/fredfortier/ai-audiobook-generator/actions/workflows/python-checks.yml)
-runs tests, strict typing, Ruff, and Black as independent jobs on pushes to `master` and pull
-requests. The [test audit](tests/README.md) identifies the concrete failure each retained test
-must detect; nominal checks and assertions already guaranteed by types do not qualify.
-
-The project targets Python 3.13 and uses a locked `uv` environment. Repository commands should be
-run through the checked-in lockfile:
-
-```sh
-uv sync --locked
-uv run python -m pytest -q
-uv run basedpyright src tests
-uv run ruff check .
-uv run black --check .
-```
-
-All Python implementation lives in `src/audiobooks/`. The root `[project.scripts]` entry point
-exposes `audiobooks`; skills call its subcommands through the same locked uv environment.
-Use `uv run --project /absolute/path/to/plugin --locked audiobooks …` from another directory.
-Each production stage retains its explicit review and acceptance boundary.
-
-Strict typing covers application code and tests. [External typing boundaries](docs/typing-boundaries.md)
-records the installed-source evidence for bundled dependency stubs and each inline exception.
-
-The current proving work is Thomas Taylor's Plotinus essay, *Concerning the Beautiful*. It exercises
-source admission, rhetorical direction, paragraph-preserving adaptation, original Chatterbox
-generation, lossless assembly, M4B chapters, recovery, and evidence-bound export. That completed
-case demonstrates the architecture; it does not imply that an unseen edition, language, voice, or
-performance style can bypass its own admission, audition, and review.
+Run `uv sync --locked` in a checkout. [AGENTS.md](AGENTS.md) defines the development contract and
+required checks; [CI](https://github.com/fredfortier/ai-audiobook-generator/actions/workflows/python-checks.yml)
+runs those checks independently. The [test audit](tests/README.md) records regression coverage;
+[typing boundaries](docs/typing-boundaries.md) document external-library exceptions.
 
 ## Updating existing work
 
@@ -387,13 +350,9 @@ structural properties and content identities; it does not certify interpretation
 or listening quality. Generated book audio and private production records are not bundled. The
 Plotinus test fixture supports source and chapter checks; it is not a downloadable audiobook demo.
 
-Strict type checking currently reports a [known backlog](https://github.com/fredfortier/ai-audiobook-generator/issues/1); this development preview does not
-claim a clean typing gate. Tests, Ruff, and Black are separate checks.
-
 ## Contributing
 
-Read [the contribution guide](.github/CONTRIBUTING.md) and [AGENTS.md](AGENTS.md), keep changes
-focused, and run the four development checks above. Report vulnerabilities through
+Follow [the contribution guide](.github/CONTRIBUTING.md). Report vulnerabilities through
 [private security reporting](.github/SECURITY.md).
 For a bug report, include the command, Python and OS versions, failure message, and a minimal input
 you have permission to share. Keep private books, voice recordings, and credentials out of issues.

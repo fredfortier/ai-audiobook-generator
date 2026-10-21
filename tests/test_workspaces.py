@@ -4,18 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from audiobooks.workspaces import REPOSITORY_ROOT, work_path, workspace_dir
+from audiobooks.workspaces import work_path, workspace_dir
 
 
 @pytest.mark.parametrize("value", [None, "", "   "])
-def test_unset_and_empty_environment_use_repository_default(
+def test_unset_and_empty_environment_use_persistent_user_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("WORKSPACE_DIR", raising=False)
     if value is not None:
         monkeypatch.setenv("WORKSPACE_DIR", value)
-    assert workspace_dir() == (REPOSITORY_ROOT / ".workspace").resolve()
+    assert workspace_dir() == (Path.home() / "Audiobooks" / "work").resolve()
 
 
 def test_relative_work_path_uses_configured_root(

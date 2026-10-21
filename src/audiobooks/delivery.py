@@ -12,6 +12,9 @@ import unicodedata
 from pathlib import Path
 
 from pydantic import ConfigDict, Field
+from static_ffmpeg.run import (
+    get_or_fetch_platform_executables_else_raise,  # pyright: ignore[reportUnknownVariableType]
+)
 
 from audiobooks.assembly import AssemblyRecord
 from audiobooks.files import write_atomic
@@ -171,10 +174,10 @@ def _version(command: str) -> str:
     return result.stdout.splitlines()[0]
 
 
-def _probe(path: Path) -> Probe:
+def _probe(path: Path, ffprobe: str) -> Probe:
     result = subprocess.run(
         [
-            "ffprobe",
+            ffprobe,
             "-v",
             "error",
             "-show_format",
@@ -201,8 +204,7 @@ def encode_m4b(
         raise ValueError("delivery output and manifest must be new")
     if output.suffix.lower() != ".m4b" or not math.isfinite(gain_db):
         raise ValueError("finite gain and an .m4b output are required")
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
-        raise ValueError("FFmpeg and ffprobe are required")
+    ffmpeg, ffprobe = get_or_fetch_platform_executables_else_raise()
     assembly_path = assembly_directory / "assembly.wav"
     metadata_path = assembly_directory / "chapters.ffmetadata"
     record_path = assembly_directory / "assembly.json"
@@ -216,7 +218,7 @@ def encode_m4b(
     if temporary.exists():
         raise ValueError("stale partial delivery exists")
     arguments = [
-        "ffmpeg",
+        ffmpeg,
         "-hide_banner",
         "-nostdin",
         "-v",
@@ -246,7 +248,7 @@ def encode_m4b(
     ]
     try:
         subprocess.run(arguments, capture_output=True, text=True, check=True)
-        probe = _probe(temporary)
+        probe = _probe(temporary, ffprobe)
         audio_streams = [stream for stream in probe.streams if stream.codec_type == "audio"]
         if len(audio_streams) != 1 or audio_streams[0].codec_name != "aac":
             raise ValueError("delivery must contain exactly one AAC audio stream")
@@ -301,8 +303,8 @@ def encode_m4b(
     manifest = DeliveryManifest.model_validate(
         {
             "delivery_version": 1,
-            "ffmpeg_version": _version("ffmpeg"),
-            "ffprobe_version": _version("ffprobe"),
+            "ffmpeg_version": _version(ffmpeg),
+            "ffprobe_version": _version(ffprobe),
             "ffmpeg_arguments": arguments[:-1] + [str(output)],
             "input_audio_hash": record.audio_hash,
             "ffmetadata_hash": record.metadata_hash,
