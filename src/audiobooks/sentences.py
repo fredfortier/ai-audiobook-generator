@@ -11,9 +11,16 @@ if TYPE_CHECKING:
 
 @lru_cache(maxsize=1)
 def _english_tokenizer() -> PunktTokenizer:
+    from nltk.downloader import (  # pyright: ignore[reportMissingTypeStubs]
+        download,  # pyright: ignore[reportUnknownVariableType]
+    )
     from nltk.tokenize import PunktTokenizer
 
-    return PunktTokenizer("english")
+    try:
+        return PunktTokenizer("english")
+    except LookupError:
+        download("punkt_tab", quiet=True, raise_on_error=True)
+        return PunktTokenizer("english")
 
 
 def sentence_spans(text: str) -> list[tuple[int, int]]:

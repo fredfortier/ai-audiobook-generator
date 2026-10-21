@@ -67,7 +67,7 @@ from outside the repository, with Python as the parent process.
 | `test_verified_variant_exports_beside_existing_base_delivery` | Exporting a named performance must choose a sibling path and preserve the existing base book. | `collapse-performance-variants` in `delivery.export_m4b` |
 | `test_verified_variant_replaces_only_the_expected_existing_export` | A wrong expected hash must leave existing bytes intact; the matching hash permits replacement. | `overwrite-unattested-export` in `delivery.export_m4b` |
 | `test_export_rejects_unverified_delivery` | A hash-bound local file with a false verification flag must never enter the finished library. | `export-unverified-audio` in `delivery.export_m4b` |
-| `test_explicit_three_chapter_assembly_and_aac_m4b_round_trip` | Real sample assembly and FFmpeg/ffprobe must preserve the three explicit chapters while excluding an ordinary subsection. | `drop-m4b-chapter-map` in `delivery.encode_m4b` |
+| `test_explicit_three_chapter_assembly_and_aac_m4b_round_trip` | Real sample assembly and automatically resolved FFmpeg/ffprobe must preserve the three explicit chapters while excluding an ordinary subsection, even with an empty PATH. | `drop-m4b-chapter-map` in `delivery.encode_m4b` |
 
 ### test_epub_sections.py
 
@@ -111,7 +111,7 @@ from outside the repository, with Python as the parent process.
 
 | Test | Application failure / required distinction | Detected fault |
 | --- | --- | --- |
-| `test_unset_and_empty_environment_use_repository_default` | Unset, empty, and whitespace-only configuration must select the package root even from another current directory. | `use-caller-work-root` in `workspaces.workspace_dir` |
+| `test_unset_and_empty_environment_use_persistent_user_default` | Unset, empty, and whitespace-only configuration must select the persistent home work directory even from another current directory. | `use-caller-work-root` in `workspaces.workspace_dir` |
 | `test_relative_work_path_uses_configured_root` | Relative book paths belong below WORKSPACE_DIR, which deliberately differs from the caller's directory. | `ignore-configured-work-root` in `workspaces.work_path` |
 | `test_relative_work_path_cannot_escape_configured_root` | Both parent traversal and a symlink resolving outside the workspace must be rejected. | `allow-workspace-escape` in `workspaces.work_path` |
 
@@ -154,8 +154,8 @@ subject to their existing runtime-identity guards; verification imports do not b
 ## CI
 
 `.github/workflows/python-checks.yml` runs four independent, fail-fast-disabled matrix jobs using
-uv, Python 3.13, and `uv sync --locked`: pytest, strict Basedpyright, Ruff, and Black. Only tests
-install FFmpeg; no model download or GPU synthesis is required by this suite. Action references
+uv, Python 3.13, and `uv sync --locked`: pytest, strict Basedpyright, Ruff, and Black. The delivery test resolves FFmpeg/ffprobe automatically, including its first-use download;
+no model download or GPU synthesis is required by this suite. Action references
 are pinned to verified release commits. All four checks must pass. Strict typing covers both
 application code and tests; the external typing boundaries and narrowly scoped exceptions are
 documented in [typing-boundaries.md](../docs/typing-boundaries.md).

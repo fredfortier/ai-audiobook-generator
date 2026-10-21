@@ -17,10 +17,12 @@ environment reproduces that diagnostic; it does not justify suppressing errors i
 | SoundFile imports in `assembly.py`, `rendering.py`, and `test_delivery.py` | `reportMissingTypeStubs` | The installed `soundfile==0.14.0` module annotates `read`, `write`, and `SoundFile`, including NumPy return types, but its distribution contains no `py.typed` marker. Package-file inspection reproduces the missing marker. Only the import diagnostic is suppressed; source annotations still check all audio calls and returned values. The real FFmpeg assembly test verifies sample preservation and M4B chapters. |
 | `torch.manual_seed(segment.seed)` in `rendering.py` | `reportUnknownMemberType` | The locked Python 3.13 environment installs `torch==2.6.0`. Its `torch/random.py` defines `manual_seed(seed) -> torch._C.Generator`: the **seed parameter** lacks an annotation. Its implementation converts that argument with `int(seed)`. The [documented argument is an integer](https://docs.pytorch.org/docs/2.6/generated/torch.manual_seed.html); the caller supplies the Pydantic-validated integer `RenderSegment.seed`, with the generation plan enforcing the unsigned 32-bit seed range. The exclusion applies only to this member lookup, and the return value is unused. |
 
-These are seven inline locations: two lxml imports, four SoundFile imports, and one PyTorch call.
+These are ten inline locations: two lxml imports, four SoundFile imports, one PyTorch call, one FFmpeg resolver import, and two NLTK downloader import diagnostics.
 No `# type: ignore`, file-wide directive, or general `Unknown` suppression is present.
 
-An isolated-copy audit removed each exception class in turn: the checker produced exactly two
+The FFmpeg resolver’s installed `static_ffmpeg/run.py` declares a `tuple[str, str]` return but leaves `download_dir` untyped. Only `reportUnknownVariableType` is suppressed on its import. NLTK 3.10.3’s native downloader also lacks complete typing; its import suppresses only `reportMissingTypeStubs` and `reportUnknownVariableType`. Both APIs are used directly, without new third-party stubs. Cold-start Punkt loading and native M4B encoding with an empty `PATH` were exercised.
+
+The earlier isolated-copy audit removed each of the original exception classes in turn: the checker produced exactly two
 private-name errors, four missing-stub errors, and one unknown-member error, with no unrelated
 diagnostics. A second static probe deliberately passed invalid arguments to seven external calls;
 all seven remained errors, including an invalid SoundFile sample rate. These probes were not added

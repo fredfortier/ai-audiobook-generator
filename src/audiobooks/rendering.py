@@ -207,14 +207,13 @@ def validate_calibration_provenance(
 
 
 def runtime_hashes() -> dict[str, str]:
-    paths = [
-        ROOT / "uv.lock",
-        *(
-            Path(__file__).parent / name
+    return {
+        "uv.lock": sha256(ROOT / "uv.lock"),
+        **{
+            "src/audiobooks/" + name: sha256(Path(__file__).parent / name)
             for name in ("rendering.py", "segmentation.py", "sentences.py", "script_contract.py")
-        ),
-    ]
-    return {str(p.relative_to(ROOT)): sha256(p) for p in paths}
+        },
+    }
 
 
 def load_plan(workspace: Path) -> RenderPlan:
@@ -655,7 +654,7 @@ def import_verified_revision(
     if current_fingerprint != verifier_fingerprint:
         raise ValueError("waveform-producing implementation differs from the verified revision")
     current_parameters = _definition_fingerprint(
-        ROOT / "src" / "audiobooks" / "script_contract.py", {"Record", "Parameters"}
+        Path(__file__).with_name("script_contract.py"), {"Record", "Parameters"}
     )
     verifier_parameters = _definition_fingerprint(
         verifier_checkout / "src" / "audiobooks" / "script_contract.py", {"Record", "Parameters"}

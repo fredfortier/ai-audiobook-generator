@@ -358,7 +358,8 @@ class DeliveryTest(unittest.TestCase):
             self.assertNotIn("Subsection", (assembly / "chapters.ffmetadata").read_text())
 
             output = root / "synthetic.m4b"
-            manifest = encode_m4b(assembly, output, bitrate="64k", gain_db=-1.0)
+            with patch.dict(os.environ, {"PATH": ""}):
+                manifest = encode_m4b(assembly, output, bitrate="64k", gain_db=-1.0)
             self.assertTrue(output.is_file())
             self.assertTrue(manifest.verification_passed)
             self.assertEqual(

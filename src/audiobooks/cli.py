@@ -9,6 +9,7 @@ from audiobooks import adaptation, preprocessing, rendering
 from audiobooks.assembly import assemble
 from audiobooks.corpus import audit_corpus
 from audiobooks.delivery import encode_m4b, export_m4b
+from audiobooks.workspaces import REPOSITORY_ROOT
 
 app = typer.Typer(
     name="audiobooks",
@@ -23,6 +24,12 @@ app.add_typer(rendering.app, name="render", help="Plan, synthesize, and verify C
 app.add_typer(delivery, name="delivery", help="Assemble, encode, and export chaptered audiobooks.")
 preprocessing.app.command("audit-corpus")(audit_corpus)
 delivery.command("assemble")(assemble)
+
+
+@app.command("runtime-root")
+def runtime_root() -> None:
+    """Print the absolute root of bundled voices, workspace contract, and agent roles."""
+    typer.echo(REPOSITORY_ROOT)
 
 
 @delivery.command()
