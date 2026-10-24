@@ -52,6 +52,8 @@ Built-in conditioning is restored explicitly before generation; custom reference
 
 ## Assemble and deliver
 
+For a literary anthology, read [anthology identification and transitions](../adapt-text/references/literary-anthologies.md) before reviewing chapter titles and opening joins. Preserve the exported title/author/work identification, and realize its heading/introduction pause targets through reviewed assembly gaps after inspecting existing quiet.
+
 Require verified audio for every planned segment. Assemble in plan order at native sample rate/channels, retaining lossless generation samples. Derive cumulative sample positions from decoded audio and declared structural gaps, not source length or estimated reading speed. Audition joins before choosing gaps; retain consonants, breath and decay. Do not apply automatic trims, fades, padding, resampling or dynamics processing without evidence that it improves the selected delivery.
 
 Before assembly, review every delivery chapter title against its exact start and surrounding text. Confirm that it coherently and plausibly names the section, preserve the authored wording, and normalize reader-facing metadata to consistent English title case without changing the spoken heading. Record one ordered entry per delivery section in a chapter-title JSON object with `style: "English title case"`; each entry contains exact `section_id` and `source_title`, approved `title`, and concise `coherence` and `plausibility` evidence. The helper rejects incomplete, reordered, lexically changed, all-caps, or inconsistently cased reviews.

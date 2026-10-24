@@ -18,6 +18,125 @@ Run `uv run --locked audiobooks adapt …`; elsewhere use `uv run --project <rep
 
 Domain boundaries reject bad data with informative failures. The agent owns source interpretation, faithful edits, meaningful beats and review; scripts own identity/order checks, spans, serialization, arithmetic and recovery. Passing deterministic checks does not certify meaning or audible quality.
 
+## Literary anthology extension — 2026-10-24
+
+The user requested reusable anthology identification, spoken chapter titles, and optional brief
+introductions before production of Working Anthology. **Literary anthology** describes this
+editorial selection of works and excerpts; “compilation” describes its assembly but does not
+identify the literary form. This extension authorizes explicit editorial framing alongside the
+faithful source text. It does not authorize changes to the selected authors' words or program.
+
+Lineage: root commit `c15398f54f7d904e55fb21a202d39f535c2290f2` adds the curatorial scratchpad.
+The separate `workspace/working-anthology` repository contains
+`72010c2a56b87e52ab14b90f97e300bd950aab21` (settled selection, WORKPAD and production plan) and
+`19a6d340a959d0171366c1b1eb8423cf4e1c9f97` (scratchpad). These distinguish editorial listening
+labels from original titles and preserve source differences. Production remains subject to the
+recorded approval boundary. This development change neither begins production nor requests
+introductions for that project.
+
+#### Published examples and adopted convention
+
+Research on 2026-10-24 examined actual published audiobook contents, rather than invented model
+titles. These are established commercial examples, not a measured bestseller ranking:
+
+| Source and inspected evidence | Consequence |
+| --- | --- |
+| Naxos, [Classic Women's Short Stories, NA223812D, booklet pp. 2–3](https://d2fahduf2624mg.cloudfront.net/pre_purchase_docs/BK_NAXO_000265/2020-06-24-05-44-43/bk_naxo_000265.pdf). Entries pair selection titles with their authors; separate CD tracks use opening phrases. The [Audio Publishers Association's 2003 awards record](https://www.audiopub.org/2003-audies-1) identifies this release as the Short Stories/Collections winner. | Adopt selection-level title plus author. Reject CD subdivisions and incipits as the anthology's literary chapter scheme. Award recognition supplies evidence of an established example, not sales volume. |
+| Naxos, [Classic Romance, NA443012D, booklet pp. 2–5](https://d2fahduf2624mg.cloudfront.net/pre_purchase_docs/BK_NAXO_000715/2020-06-23-11-04-52/bk_naxo_000715.pdf). Work/excerpt titles precede author credits. Unknown authorship is marked; conventional short literary names and initials occur. The cover credits an introducing narrator separately. | This mixed-form excerpt anthology is the closest structural precedent. Adopt title-first identification, containing-work identification for excerpts, and conventional author names; distinguish narrator from author. Do not copy its inconsistent abbreviations. |
+| Naxos, [Favourite Essays: An Anthology, NA493712D, booklet pp. 2–4](https://d2fahduf2624mg.cloudfront.net/pre_purchase_docs/BK_NAXO_000512/2020-06-24-07-38-44/bk_naxo_000512.pdf). Author group headings organize separately titled essays; longer essays have additional incipit tracks. | Preserve author/work association while flattening navigation to independently identifiable delivery chapters. An author group heading alone cannot identify a later isolated chapter. |
+
+The booklets were retrieved and text-extracted in full; their contents establish published
+labeling, not the exact words spoken on every recording. The recurring convention is selection
+title plus literary author, with source-work titles identifying extracts. Ordering and typography
+vary across editions and retailer presentations. The runtime mandates `Title, by Author` as this
+project's consistent realization of that convention; it does not claim a universal industry rule
+for punctuation or author/title ordering. Requiring the author on **every** chapter and explicit
+book/division identification where applicable implements this user's stronger requirement.
+Bare thematic labels lose identity; a bare chapter number loses both identity and authorship.
+
+#### Pauses and optional introductions
+
+[Neil Gardner, Ladbroke Audio, “Let's Talk About Secs”](https://ladbrokeaudio.co.uk/lets-talk-about-secs/)
+describes two seconds between a chapter heading and the body as usual UK production practice,
+while explicitly allowing publisher variation. The primary producer's indexed page text was
+available through search; direct retrieval returned 403. It distinguishes that interval from
+opening-credit and file-edge silences. Its credit-to-heading interval does **not** describe a
+short editorial introduction after a heading, so that different interval is not imported here.
+
+The [2024 Sound Advice guidelines, §6.1.5](https://printdisability.org/wp-content/uploads/2024/10/Sound-Advice-Guidelines-2024-3rd-Edition-N18-PDF.pdf)
+require intelligible, context-sensitive phrasing and appropriate pauses; they supply no special
+fixed duration for anthology introductions. The [NLS narration specification, 2025, §§3.1.1–2](https://www.loc.gov/nls/who-we-are/guidelines-and-specifications/contract-specifications/narration/)
+similarly treats timing as an interpretative skill. Neither establishes an anthology exemption
+from ordinary source-responsive narration. Their accessibility-specific rules about including
+apparatus do not replace this project's main-text-only default.
+
+Decision: adopt a two-second heading transition as a documented professional default for
+ordinary books and anthologies. When a user requests an introduction, apply that same structural
+separation on both sides of it. **This extension is a local editorial policy by analogy, not an
+externally standardized introduction duration.** One or two sentences is likewise a local
+interpretation of the user's “brief,” not a publishing standard. Factual orientation and an
+audible editorial voice keep the introduction distinguishable from the source. Listening may
+justify a recorded timing departure; no fixed number alone proves a natural transition.
+
+The pause target describes the complete audible interval from the preceding spoken ending to
+the following spoken onset. Existing quiet contributes to it. Assembly adds only the missing
+native frames after checking those boundaries and preserving breath/decay; adding two seconds
+blindly can double the intended separation. Already-longer quiet requires listening and a
+recorded departure or an independently justified repair under the rendering contract.
+
+#### Implementation boundary and prose acceptance
+
+Deterministic prior art already supplies the necessary protocol:
+[Unit/Section evidence](../../src/audiobooks/source_units.py) retains locators and manual editorial
+decisions; [adaptation export](../../src/audiobooks/adaptation.py) requires a delivery title to be
+one narrated heading at its explicit start; [assembly](../../src/audiobooks/assembly.py) accepts
+reviewed native-frame gaps and permits title-case changes without lexical relabeling.
+[Section tests](../../tests/test_section_contract.py) cover title projection and source identity.
+No schema, helper, pause tag, metadata bypass, or new deterministic policy is needed.
+
+Editorial framing must therefore exist in a retained compilation witness **before** admission.
+Original witnesses remain separate provenance. The new anthology heading is a genuine heading
+of that editorial compilation; an introduction remains separately indexed paratext admitted for
+speech only by the user's request and exact brief rule. The source text remains unchanged.
+Post-export insertion would defeat coverage and title-word checks and is rejected. Existing
+introductory paratext is still excluded unless explicitly selected. A redundant source opening
+title can be excluded with a scoped record while preserving internal authored headings.
+
+The skill-writer synthesis/authoring route applies because the user requested new behavior.
+The minimum shape is the existing reference-backed skill with one flat conditional leaf and
+direct entry routes from preparation, adaptation and rendering. No discovery description,
+registration, execution shape, provider mechanism, or delegated workflow changes. This is not
+donor adaptation, declared doctrine, or an iteration from measured model failures. Research
+stopped after the examples and primary timing guidance resolved the decisions; no universal
+intro-duration claim remains to justify. Source lineage belongs here, outside runtime.
+
+Formulation record: the runtime agent owes title/author identification for each anthology
+chapter, introduction inclusion only upon request, and audible boundary review. The title,
+source work/division and author must correspond to that chapter in speech and navigation.
+“Literary anthology” uses its ordinary meaning; explicit editorial provenance assigns no new
+power to alter source text. Obligations, correspondence and provenance/permission routes all
+apply. The positive compilation-unit rule replaces the blanket announcement ban only within
+this scope; independent fidelity, default paratext exclusion and frozen-source safeguards stay.
+Conditions attach to their acts: a request permits introductions but does not admit all paratext;
+two seconds attaches to each complete transition, not to every synthesis block.
+
+Inspection cases: a complete standalone selection has title and author without a spurious book;
+a titled extract also identifies its containing work and applicable division; an untitled extract
+uses the work/division rather than an invented original title; unknown or disputed authorship
+retains its status rather than borrowing a speaker's name. A later chapter by a returning author
+still includes that author. Without a request the source follows the heading directly, separated
+by the heading pause. With a request, an indexed editorial introduction sits between them with
+both joins reviewed. A metadata-only author, an unindexed introduction, a swapped author, or
+blind added padding fails the assembled rule. A normal single work retains its authored headings
+without per-chapter anthology attribution. These are prose review cases, not executed model
+comparisons or acoustic evidence; the new reference has not yet been exercised in production.
+
+Validation on this change: `uv run python -m pytest -q` passed (48 tests and 10 subtests);
+`uv run basedpyright src tests` reported zero errors/warnings; `uv run ruff check .` and
+`uv run black --check .` passed. The installed skill-creator `quick_validate.py` passed for all
+three touched skills; it checks frontmatter, not runtime behavior. Local reference routing and
+the assembled contract were inspected separately. No model/audio production was performed.
+
 ## Admitted prepared source
 
 The version-two bundle contains retained bytes under `original/`, `prepared.md`, ordered `units.jsonl`, explicit `sections.jsonl` and `manifest.json`. The manifest declares `prepared_text_version: 2`, ready/blocked admission, source/edition/language/scope, ordered section IDs, original-file hashes, manuscript/index/section hashes, tool versions, checks and issues. Each section record retains boundary/title provenance, hierarchy, role, exact start/title units and the delivery-chapter decision. Admission requires accessible text, recoverable reading order, complete declared scope, exact contiguous unit coverage and an authored or provenance-backed normalized title unit for every delivery section. Version one is readable as archived evidence but cannot initialize new adaptation; migration requires reviewed section decisions. Scans, encoding damage, uncertain columns or essential unsupported material return to upstream transcription; do not guess. An independently complete excerpt can be admitted explicitly.
