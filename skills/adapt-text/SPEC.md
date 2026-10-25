@@ -54,6 +54,11 @@ for punctuation or author/title ordering. Requiring the author on **every** chap
 book/division identification where applicable implements this user's stronger requirement.
 Bare thematic labels lose identity; a bare chapter number loses both identity and authorship.
 
+User correction on 2026-10-24: identify the original author by the common literary name.
+Translator names, editions, publication details, and attribution scholarship belong in external
+work notes, outside spoken headings and navigation titles. An unidentified translator or print
+edition alone does not block admission of an otherwise clear, approved retained text.
+
 #### Pauses and optional introductions
 
 [Neil Gardner, Ladbroke Audio, “Let's Talk About Secs”](https://ladbrokeaudio.co.uk/lets-talk-about-secs/)

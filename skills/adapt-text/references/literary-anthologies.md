@@ -12,14 +12,15 @@ and navigation title. Use the title-first convention `Title, by Author`. For an 
 own title, use `Selection Title, from Work Title, division, by Author`; otherwise use
 `Work Title, division, selected passages, by Author`. Include the source work and book, chapter,
 sermon, or letter designation needed to locate the selection. Omit inapplicable elements and
-avoid repeating a work title. Keep exact scholarly ranges and translation credits in the listening
-guide when they would overload speech; the spoken heading must still identify the selected scope.
+avoid repeating a work title. Keep translator names, editions, publication details, and exact
+scholarly ranges in the external work notes. Spoken headings and navigation titles identify the
+selection and its original author; bibliographic credits do not form part of either title.
 An editorial thematic label may accompany this identification, but cannot replace it.
 
-Use the established literary name in the selected edition, such as Plato or Seneca; do not invent
-abbreviations. Use Anonymous for unknown authorship, and preserve qualifications on traditional
-or disputed attributions. A speaker, translator, editor, or compiler is not thereby the author.
-Record one name form per author and reuse it even when that author returns later.
+Use the original author's common literary name, such as Plato or Seneca. Use Anonymous when no
+author is known. Record qualifications on traditional or disputed attributions in the external
+work notes. A speaker, translator, editor, or compiler is not thereby the author. Record one name
+form per author and reuse it even when that author returns later.
 
 For example, an excerpt headed “Sufism” from Al-Ghazali's work becomes
 `Sufism, from Deliverance from Error, by Al-Ghazali`. A bare thematic label or `Chapter Three`
