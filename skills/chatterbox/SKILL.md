@@ -46,11 +46,19 @@ After the auditions pass, run `audiobooks render generate <workspace>` for all r
 
 When a new plan changes only non-generative section metadata, `audiobooks render import-verified-revision <new-workspace> <prior-workspace> <isolated-checkout>` may reuse prior waveforms. It first runs the prior checkout's own full status verification, requires every generation request, model byte, lockfile, device, voice, seed, text, span and control to match, and compares the waveform-producing implementation and control schema structurally. Any difference stops import. Retain its hash-bound import record; this is not a general stale-runtime bypass.
 
+Review while rendering: inspect the first few minutes before committing to bulk generation, then
+review reproducible random passages from newly rendered audio at regular checkpoints. Apply the
+[progressive sampling and escalation rules](references/quality-review.md) so problems are caught
+before they spread. Keep review throughput practical; do not build an exhaustive ASR, phoneme or
+audio-model review backlog for the end of the book.
+
 For a diagnosed stochastic speech error, preserve the failed audio and retry the complete unchanged span with an explicit alternative seed. `audiobooks render schema seed-overrides` describes a list of `segment_id`, unsigned 32-bit `seed` and scoped `reason`; pass its file to a fresh `audiobooks render plan … --seed-overrides <file>`. Do not loop through seeds without reviewing the failure. `--reuse-from <prior-workspace>` validates the prior frozen plan and copies only verified audio with an identical segment generation request: exact span/text, controls, seed, model, reference, device and runtime. Book coverage remains checked independently; changed requests need generation and review. Transfer quality observations only when actual audio hashes match.
 
 Built-in conditioning is restored explicitly before generation; custom references use the public conditioning path. A missing reference, conditioning failure or resource failure stops generation. Preserve failed attempts separately; choose a targeted reviewed correction rather than a fallback cascade.
 
 ## Assemble and deliver
+
+For a literary anthology, read [anthology identification and transitions](../adapt-text/references/literary-anthologies.md) before reviewing chapter titles and opening joins. Preserve the exported title/author/work identification, and realize its heading/introduction pause targets through reviewed assembly gaps after inspecting existing quiet.
 
 Require verified audio for every planned segment. Assemble in plan order at native sample rate/channels, retaining lossless generation samples. Derive cumulative sample positions from decoded audio and declared structural gaps, not source length or estimated reading speed. Audition joins before choosing gaps; retain consonants, breath and decay. Do not apply automatic trims, fades, padding, resampling or dynamics processing without evidence that it improves the selected delivery.
 
@@ -60,7 +68,11 @@ Run `audiobooks delivery assemble <render-workspace> <new-output-directory> <gap
 
 Encode with `audiobooks delivery encode <assembly-directory> <new-output.m4b> --bitrate <rate> --gain-db <gain>`. The helper maps FFmetadata and chapters, maps source-derived title/author, writes AAC in an MP4-family container, then reopens it with ffprobe and compares every complete normalized title and contiguous start/end time to the source-frame plan under its recorded tolerance. Its manifest binds commands, versions, input/metadata/output hashes and codec parameters. Measure the unprocessed assembly before choosing any common gain or mastering, and remeasure the encoded delivery. Use a supported large-file container if PCM outgrows classic RIFF.
 
-Complete the quality review on all segments and the actual delivery file. Do not claim a polished audiobook from a successful synthesis call or transcript alone.
+Complete automated integrity and ordered-coverage checks for all segments, progressive sampled
+audio review, targeted follow-up of credible defects, and brief checks of the actual delivery
+file. Full perceptual review of every segment is not a completion requirement. Report the actual
+sample coverage and any unresolved limitations; synthesis success or a transcript alone does not
+establish audio quality.
 
 Export the verified delivery by default after completing its quality review. Skip export only when the user or governing context explicitly says the delivery must remain in the work directory. Read the finished-library directory from `EXPORT_DIR`; it has no fallback. Run `audiobooks delivery export <delivery.m4b>`. For an explicitly named sibling performance that shares the same admitted author and title, pass `--variant <variant>` so both deliveries coexist without changing source metadata. The helper requires the passing delivery manifest and matching M4B hash, then copies atomically without replacing different content. When an authorized correction supersedes an existing export, pass its exact observed SHA-256 as `--replace-hash`; replacement stops if the target changed or disappeared.
 

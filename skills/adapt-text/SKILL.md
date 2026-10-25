@@ -13,6 +13,8 @@ Use `$WORKSPACE_DIR/<book-name>/adaptation/` for adaptation work. Set `WORKSPACE
 
 Read the project's `WORKPAD.md` before adaptation and preserve its `Blueprint`. Update the `Material record` for consequential normalization or performance decisions, source surprises, material repairs, and requested revisions that change downstream work. Do not copy batch progress or machine records into it.
 
+For a literary anthology of separate works or excerpts, read [literary-anthologies.md](references/literary-anthologies.md) before freezing chapter titles, editorial introductions, or transition instructions.
+
 ## Survey and freeze
 
 Read [source-and-normalization.md](references/source-and-normalization.md), [performance.md](references/performance.md), and [chatterbox-original.md](references/chatterbox-original.md) for the source and delivery decisions. When acting direction is requested or the brief contains direction context, also read [acting-direction.md](references/acting-direction.md) before creating or reviewing the score. Admit raw sources through `preprocess-text`; require its retained witness, prepared Markdown, ordered unit index, explicit `sections.jsonl` and admitted version-two manifest.
