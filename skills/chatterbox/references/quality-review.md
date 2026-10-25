@@ -1,39 +1,103 @@
 # Audio quality review
 
-Use decoded audio and the exact expected text from the frozen plan. Preserve quantitative reports, transcripts, sample locations and review decisions beside the rendered audio. A passing metric is evidence for its measured property only.
+Catch problems during rendering with a reproducible random sample and targeted follow-up. Keep
+complete mechanical integrity and source-order checks, but do not require listening, ASR, phoneme
+analysis or audio-model criticism of every segment. Do not defer a large review queue until the
+whole book is rendered. Record what was actually checked; sampled acceptance is not an exhaustive
+listening claim.
 
-## Every segment
+## Complete mechanical checks
 
-Verify finite nonempty samples, native sample rate/channel count, decoded frame count and saved-byte hash. Measure duration per word, active-speech ratio, leading/trailing/internal silence, RMS, peak, clipped-sample count and longest run, and DC offset. Use supported FFmpeg `astats`, `silencedetect`, `ebur128` or equivalent established tools where suitable. State the silence threshold/window used. Flag relative outliers and suspicious endpoints; a single peak sample does not establish an audible glitch.
+Verify every saved segment's hash, readable finite nonempty samples, native rate/channel count and
+frame count. Reconcile every planned segment exactly once and in order, with no missing source
+spans. Use inexpensive automated duration, silence and peak measurements to locate outliers and
+suspicious endpoints. Compare outliers with their source and delivery action before calling them
+defects; a single peak or unusual duration does not establish an audible problem.
 
-Reconcile the complete expected speech with a supported ASR transcript. Use a backend that loads safely; never disable checkpoint safeguards. Do not supply expected prose as an ASR prompt when testing omissions. Inspect actual missing/repeated/extra phrases, especially first/last words, negation and the end of long clauses. Archaic spelling and proper-name transcription variants need local adjudication; normalizing a transcript must not hide a dropped word. Token-budget compliance does not prove that generation finished before its output ceiling.
+These checks establish file integrity and planned coverage, not that every spoken word is correct.
+Use unprompted ASR on sampled passages and suspected omissions, repetitions or truncations. Compare
+each selected passage with its complete expected wording, including negation and phrase endings.
+Do not feed that wording to the recognizer. Full-book ASR is optional when it is inexpensive and
+keeps up with rendering; full-book phoneme and audio-language-model passes are not default gates.
 
-Route each unexplained anomaly to localized playback or a supported audio-analysis tool. Check intelligibility, absence of doubled words/breaths, terminal consonants, natural breath/decay, clicks, buzz, abrupt timbre changes, and whether pauses complete syntax. ASR cannot certify preferred classical pronunciation or acting. The [Whisper model card](https://github.com/openai/whisper/blob/main/model-card.md) explicitly warns that its predictions can include words absent from the recording; independently adjudicate apparent additions as well as omissions.
+## Review during rendering
 
-When using an audio-language model, pin its checkpoint and use the installed processor's supported audio input. Verify that actual audio features reach the model; ignored keyword arguments can otherwise yield a plausible response from text alone. Record analyzed intervals, sample rate, any analysis resampling and the model's audio-window limit. Divide longer samples explicitly rather than allowing silent truncation. Verify that the analyzed interval contains the flagged occurrence; hearing the same word elsewhere or reviewing a prefix that excludes its endpoint cannot settle the flag. Before trusting free-form criticism, confirm that it recognizes a known real speech clip without providing its prose, and check claimed times against decoded intervals. Positive input features alone do not establish critic competence. Reject contradictory or unsupported descriptions; do not alter audio solely to satisfy them. Treat its observations as fallible supplementary evidence and reconcile them with acoustic measurements and source completion.
+Before bulk generation, review representative auditions and the first few minutes of the chosen
+performance. Cover the voices, delivery extremes, longest clauses, verse/dialogue and difficult
+names that actually occur. Confirm restrained intensity, intact words and endings, and natural
+joins before letting the same settings propagate.
 
-## Perceptual sample selection
+During rendering, select a random complete passage from newly available audio roughly every
+15–20 minutes of generated listening time. A useful default is 20–40 seconds of speech per
+checkpoint, with at least one random passage from each chapter or short work. Spread selection
+across the program rather than repeatedly sampling its beginning. Record the random seed, eligible
+segments, actual selected IDs/intervals and audio hashes so selection is reproducible. Snap to
+complete phrases and include neighboring onsets/decays; respect a tool's window limit by splitting
+explicitly. Targeted checks supplement the random sample rather than replacing it.
 
-During calibration review every selected audition and its adjacent joins. For a completed book, inspect opening and closing audio, every voice transition, every delivery category, every distinct source form, all difficult-name occurrences, all exceptional clause cuts, and every quantitative/ASR flag. Also choose representative unflagged passages from the beginning, middle and end of each substantial section. Record actual playback intervals and observations; sample counts alone are not a quality proof.
+Inspect newly introduced voices, source forms, delivery settings and pronunciation cues when they
+first appear. Recheck representative difficult names and exceptional clause joins; do not turn
+every repeated name, voice transition or subdivision into a separate mandatory model request.
+Continue review alongside generation using an available playback or qualified analysis tool.
+Choose a method that can keep up; model benchmarking and competing reviewer backends are not part
+of ordinary book production.
 
-Judge delivery against the passage's rhetorical action: lucid exposition, a coherent question, contemplative elevation or an earned warning. Check sustained pace and contrast, including whether repeated generation subdivisions introduce artificial full stops. If a sample fails, expand review to the affected category or neighborhood and repair the implicated settings/segmentation rather than flatten the whole work.
+Judge intelligibility, unintended repeated/garbled words, consonants, breath/decay, clicks, abrupt
+timbre changes, syntactic pauses and sustained pace against the source. Check whether warning,
+exhortation or exaltation becomes aggressive or shouted prematurely. Review its lead-in and
+release; reserve extreme force for an earned climax without flattening the rest of the acting.
+Names should flow as whole words, without coaching-induced syllabic attacks. Necessary wording or
+pronunciation-cue changes return to adaptation; numerical acting repairs use calibration.
 
-Check whether a warning, exhortation or exaltation jumps prematurely into aggression, shouting or a
-high-pitched register. Intensity should remain convincing at the scale of acting a letter to a
-listener; extreme vocal force needs an exceptional, earned climax. Review the lead-in and release,
-not just the loud passage in isolation. A correction passes when excessive force is reduced while
-the passage retains its emotional commitment and contrast with its neighbors.
+## Targeted escalation and stopping
 
-For names, listen for each name word to flow as a single word, with no artificial pauses or separate
-syllabic attacks introduced by pronunciation coaching. Preserve natural breaks
-between words of a multiword name. Compare the actual reading with the scoped intended form and
-check consistency; return necessary spelling repairs to adaptation rather than inserting phonetic
-separators into a frozen render request.
+When a sample reveals a credible defect, inspect the complete affected phrase, its neighbors and a
+few additional examples from the same setting, batch or delivery category. Repair the demonstrated
+cause early and recheck the repair and its joins. If the problem recurs, widen review within that
+affected scope and hold further generation using the implicated settings until corrected. A local
+failure does not require replaying the whole book or checking every unrelated segment.
 
-## Assembly and encoded delivery
+Triage automated flags into likely shared causes. Resolve a cause with contextual evidence and
+reviewed examples instead of sending every spelling variant or weak-sound boundary to multiple
+models. ASR can hallucinate additions as well as miss words; authored repetition and crop edges
+must not be mistaken for generation defects. Do not retry seeds or rewrite source words solely
+because a critic gives an unsupported description.
 
-Reconcile every planned segment exactly once and in order. Check joins using the terminal speech and next complete onset, preserving consonants and tails; inspect unusual silence and unexpected boundary peaks. Quantify pacing and silence over the full assembly, distinguishing declared gaps from generated pauses.
+Sampling is sufficient when the early pilot and distributed rolling sample pass, demonstrated
+material defects and affected neighborhoods are resolved, and the final mechanical and encoded
+checks pass. Extra random samples or an exhaustive final sweep are not required merely because
+unreviewed segments remain. State the sample coverage and bounded pronunciation/perceptual limits.
 
-Measure native-channel Integrated, Momentary, Short-term loudness, LRA and True Peak before mastering. Choose any gain/limiting from the actual target and measurements; do not adopt another project's numbers as a default. Verify the resulting dynamics and encoded-file peaks instead of relying on the filter input settings.
+## Audio-model evidence
 
-Decode and inspect the delivered file itself: codec, channels/rate, duration, speech completeness, beginning/end, seams and navigation. Chapter order/titles must follow genuine source structure, times must follow realized audio, and the last boundary must agree with probed duration within container tolerance. Re-run affected checks after repairs. If perceptual evidence is unavailable, report that limitation and leave polished-audio acceptance unresolved.
+If using an audio-language model, pin the checkpoint, precision, input handling and prompt. Check
+that actual audio features reach it, that it recognizes a real speech clip without its prose, and
+that the chosen perceptual prompt distinguishes a clean clip from known damaged speech. Record
+actual analyzed intervals and respect the audio-window limit. Reuse qualification for an unchanged
+setup; do not repeat controls for every batch.
+
+Reject unsupported event times, contradictory claims and generic assurances. Expand a disputed crop
+to complete source phrases before inferring shouting, repetition or a cut. Treat the model as
+fallible supplementary evidence, reconciled with source, playback or independent measurements.
+If a prompt or backend fails its controls, withdraw its assurances and replace the affected sampled
+review using a working method. Keep valid integrity/source evidence; do not convert the failed
+review's entire historical interval inventory into a new exhaustive certification requirement.
+
+## Final assembly and encoded delivery
+
+Verify native sample preservation, declared gaps, source order and all chapter titles/times by
+machine. Measure native-channel loudness, range and true peak before choosing any mastering, then
+remeasure the actual encoded file. Gain, limiting, trims, fades or resampling need an evidenced
+delivery benefit; another book's settings are not defaults.
+
+Decode the delivered file and verify codec, rate/channels, duration, errors and complete segment
+coverage. Check its beginning/end, a small fresh random sample and representative chapter seams,
+plus repaired or suspect joins. Earlier native reviews remain valid for unchanged performances
+when encoded integrity is verified; do not replay every native review window after encoding.
+Navigation must follow the realized source-frame plan, with contiguous boundaries and the final
+end agreeing with the probed duration within container tolerance.
+
+Finish and export when the complete mechanical checks, progressive random sample, targeted repairs
+and bounded encoded spot checks pass. If a genuine material defect or required sample review is
+unresolved, report that specific limitation honestly; lack of exhaustive segment-by-segment review
+alone is not a reason to hold a finished delivery.
