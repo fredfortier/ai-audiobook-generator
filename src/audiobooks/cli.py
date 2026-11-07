@@ -34,10 +34,16 @@ def runtime_root() -> None:
 
 @delivery.command()
 def encode(
-    assembly_directory: Path, output: Path, bitrate: str = "96k", gain_db: float = 0.0
+    assembly_directory: Path,
+    output: Path,
+    bitrate: str = "96k",
+    gain_db: float = 0.0,
+    system_ffmpeg: bool = False,
 ) -> None:
     """Encode and verify a chaptered AAC/MP4 M4B from lossless assembly."""
-    manifest = encode_m4b(assembly_directory, output, bitrate=bitrate, gain_db=gain_db)
+    manifest = encode_m4b(
+        assembly_directory, output, bitrate=bitrate, gain_db=gain_db, system_ffmpeg=system_ffmpeg
+    )
     typer.echo(f"verified {len(manifest.chapters)} chapters; {manifest.output_hash}")
 
 

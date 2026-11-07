@@ -359,6 +359,8 @@ class DeliveryTest(unittest.TestCase):
 
             output = root / "synthetic.m4b"
             with patch.dict(os.environ, {"PATH": ""}):
+                with self.assertRaisesRegex(ValueError, "requires both ffmpeg and ffprobe"):
+                    encode_m4b(assembly, root / "missing.m4b", system_ffmpeg=True)
                 manifest = encode_m4b(assembly, output, bitrate="64k", gain_db=-1.0)
             self.assertTrue(output.is_file())
             self.assertTrue(manifest.verification_passed)
@@ -368,3 +370,12 @@ class DeliveryTest(unittest.TestCase):
             )
             self.assertEqual(manifest.probe.streams[0].codec_name, "aac")
             self.assertEqual(manifest.input_audio_hash, assembly_record["audio_hash"])
+            system_manifest = encode_m4b(
+                assembly, root / "system.m4b", bitrate="64k", system_ffmpeg=True
+            )
+            self.assertTrue(system_manifest.verification_passed)
+            self.assertEqual(system_manifest.probe.streams[0].codec_name, "aac")
+            self.assertEqual(
+                [chapter.title for chapter in system_manifest.chapters],
+                ["Opening", "Chapter Two", "Closing"],
+            )

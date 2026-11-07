@@ -195,7 +195,12 @@ def _probe(path: Path, ffprobe: str) -> Probe:
 
 
 def encode_m4b(
-    assembly_directory: Path, output: Path, *, bitrate: str = "96k", gain_db: float = 0.0
+    assembly_directory: Path,
+    output: Path,
+    *,
+    bitrate: str = "96k",
+    gain_db: float = 0.0,
+    system_ffmpeg: bool = False,
 ) -> DeliveryManifest:
     """Encode one verified assembly and compare ffprobe chapters to its frame plan."""
     assembly_directory = work_path(assembly_directory)
@@ -204,7 +209,13 @@ def encode_m4b(
         raise ValueError("delivery output and manifest must be new")
     if output.suffix.lower() != ".m4b" or not math.isfinite(gain_db):
         raise ValueError("finite gain and an .m4b output are required")
-    ffmpeg, ffprobe = get_or_fetch_platform_executables_else_raise()
+    if system_ffmpeg:
+        ffmpeg = shutil.which("ffmpeg")
+        ffprobe = shutil.which("ffprobe")
+        if ffmpeg is None or ffprobe is None:
+            raise ValueError("--system-ffmpeg requires both ffmpeg and ffprobe on PATH")
+    else:
+        ffmpeg, ffprobe = get_or_fetch_platform_executables_else_raise()
     assembly_path = assembly_directory / "assembly.wav"
     metadata_path = assembly_directory / "chapters.ffmetadata"
     record_path = assembly_directory / "assembly.json"
