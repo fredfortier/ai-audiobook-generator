@@ -10,7 +10,9 @@ Audit scope: every test function in this directory, the code it exercises, all s
 and bundled CLI commands. The original suite had 43 test functions. The initial audit at
 `31f1794` retained 40 functions. The shared CLI adds three functions with six cases, bringing
 the suite to 43 functions (48 pytest cases, plus subtests). The export-ledger regression adds one
-function, bringing the current suite to 44 functions (49 pytest cases, plus subtests).
+function, bringing that suite to 44 functions (49 pytest cases, plus subtests). Runtime-resource/path
+and verse-line regressions add two functions: 46 functions, 51 pytest cases, plus subtests.
+These two production-discovered regressions are additional to the historical mutation audit below.
 
 The one-off mutation audit ran the suite against 38 domain faults in isolated source copies.
 An unmodified isolated control passed. Every mutant was detected, and every retained test
@@ -161,3 +163,12 @@ no model download or GPU synthesis is required by this suite. Action references
 are pinned to verified release commits. All four checks must pass. Strict typing covers both
 application code and tests; the external typing boundaries and narrowly scoped exceptions are
 documented in [typing-boundaries.md](../docs/typing-boundaries.md).
+
+## Henosis consumer regressions
+
+- `test_runtime_resources_and_relative_preparation_paths_survive_external_callers`: a moved
+  personal workspace must not break package installation; bundled contracts and worker references
+  must exist, and a consumer outside the generator checkout can initialize from WORKSPACE_DIR.
+- `test_verse_line_boundaries_cannot_be_flattened_during_normalization`: a source-preserving
+  adaptation must retain embedded stanza line boundaries. The unchanged positive case passes;
+  the flattened negative case must be rejected before beat validation or export.

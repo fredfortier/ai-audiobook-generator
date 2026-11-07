@@ -324,3 +324,48 @@ class ActingScoreTest(unittest.TestCase):
                 {"s000001": realized},
                 True,
             )
+
+
+def test_verse_line_boundaries_cannot_be_flattened_during_normalization() -> None:
+    unit, brief, _ = acting_score_fixture()
+    source = "Alpha\nbeta gamma"
+    unit = unit.model_copy(update={"kind": "verse", "source_text": source, "prepared_text": source})
+    move = DirectorMove(
+        id="mverse",
+        unit_id=unit.id,
+        start=0,
+        end=len(source),
+        action="CLARIFY",
+        objective="CLARIFY the listener to follow the verse by retaining its lines.",
+        textual_evidence="Alpha",
+    )
+    disposition = Disposition(
+        id=unit.id,
+        disposition="narrated",
+        normalized_text=source,
+        beats=[
+            Beat(
+                start=0,
+                end=len(source),
+                voice=brief.narrator,
+                action="CLARIFY",
+                score_move_ids=[move.id],
+                parameters=ACTION_PARAMETERS["CLARIFY"],
+            )
+        ],
+    )
+    check_disposition(disposition, unit, brief, [move])
+    flattened = disposition.model_copy(
+        update={
+            "normalized_text": source.replace("\n", " "),
+            "edits": [
+                Edit(before=source, after=source.replace("\n", " "), reason="Flattened verse.")
+            ],
+        }
+    )
+    try:
+        check_disposition(flattened, unit, brief, [move])
+    except ValueError as error:
+        assert "verse line boundaries" in str(error)
+    else:
+        raise AssertionError("flattened verse was accepted")

@@ -29,7 +29,7 @@ from audiobooks.source_units import (
     sections,
     sha256,
 )
-from audiobooks.workspaces import work_path
+from audiobooks.workspaces import REPOSITORY_ROOT, work_path
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
 
@@ -740,6 +740,8 @@ def check_disposition(
     text = item.normalized_text
     if not text or text != "\n".join(" ".join(line.split()) for line in text.split("\n")):
         raise ValueError("missing or noncanonical normalized text")
+    if unit.kind == "verse" and len(text.splitlines()) != len(unit.prepared_text.splitlines()):
+        raise ValueError("verse line boundaries changed: " + item.id)
     if text != unit.prepared_text and not item.edits:
         raise ValueError("changed text needs edit reasons")
     if re.search(r"\d", text) and not any(
@@ -876,6 +878,8 @@ def validate_result(
 def init(prepared: Path, brief_path: Path, workspace: Path) -> None:
     """Freeze an admitted bundle, surveyed brief and deterministic plan."""
     workspace = work_path(workspace)
+    prepared = work_path(prepared)
+    brief_path = work_path(brief_path)
     if workspace.exists():
         raise ValueError("workspace exists; use status to resume")
     manifest, units = admit(prepared, required_version=2)
@@ -1002,11 +1006,7 @@ def direction_task(
         "reference_paths": [
             str(
                 (
-                    Path(__file__).resolve().parents[2]
-                    / "skills"
-                    / "adapt-text"
-                    / "references"
-                    / "acting-direction.md"
+                    REPOSITORY_ROOT / "skills" / "adapt-text" / "references" / "acting-direction.md"
                 ).resolve()
             )
         ],
@@ -1349,15 +1349,7 @@ def task(
         },
         "pronunciation_watchlist": brief.pronunciation_watchlist,
         "reference_paths": [
-            str(
-                (
-                    Path(__file__).resolve().parents[2]
-                    / "skills"
-                    / "adapt-text"
-                    / "references"
-                    / name
-                ).resolve()
-            )
+            str((REPOSITORY_ROOT / "skills" / "adapt-text" / "references" / name).resolve())
             for name in (
                 "worker-procedure.md",
                 "source-and-normalization.md",

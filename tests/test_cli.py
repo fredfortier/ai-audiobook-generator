@@ -86,3 +86,44 @@ def test_preprocess_cli_preserves_reports_and_propagates_blocked_admission(
     assert overwrite.returncode != 0
     assert "refusing to replace" in overwrite.stderr
     assert report.read_text() == "reviewed evidence must survive"
+
+
+def test_runtime_resources_and_relative_preparation_paths_survive_external_callers(
+    tmp_path: Path,
+) -> None:
+    from audiobooks.files import write_atomic
+    from audiobooks.source_units import admit, identity
+    from tests.test_acting_score import acting_score_fixture
+    from tests.test_section_contract import migrated_plotinus
+
+    runtime = invoke(tmp_path, "runtime-root")
+    assert runtime.returncode == 0, runtime.stderr
+    resource_root = Path(runtime.stdout.strip())
+    assert (resource_root / "assets/workspace-contract.md").is_file()
+    assert (resource_root / "skills/adapt-text/references/worker-procedure.md").is_file()
+    prepared = migrated_plotinus(tmp_path)
+    manifest, units = admit(prepared)
+    _, template, _ = acting_score_fixture()
+    brief = template.model_copy(
+        update={
+            "prepared_source_hash": identity(manifest),
+            "survey_unit_ids": [unit.id for unit in units],
+            "section_baselines": {section: None for section in manifest.section_ids},
+            "section_dependencies": {section: [] for section in manifest.section_ids},
+        }
+    )
+    write_atomic(tmp_path / "brief.json", brief.model_dump())
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    result = invoke(
+        caller,
+        "adapt",
+        "init",
+        "prepared",
+        "brief.json",
+        "adaptation",
+        environment={"WORKSPACE_DIR": str(tmp_path)},
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "adaptation/manifest.json").is_file()
+    assert not (caller / "adaptation").exists()

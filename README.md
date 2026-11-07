@@ -325,7 +325,7 @@ their stage records.
 
 Set `EXPORT_DIR` to the finished-library root. Successful deliveries are exported as stable,
 source-derived M4B paths; named sibling performances can coexist as variants. See
-[`workspace/AGENTS.override.md`](workspace/AGENTS.override.md) for the editorial workspace contract
+[`assets/workspace-contract.md`](assets/workspace-contract.md) for the editorial workspace contract
 and the Chatterbox skill for final naming and verification.
 
 ## Development

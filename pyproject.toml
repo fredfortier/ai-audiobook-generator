@@ -41,8 +41,9 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel.force-include]
 "uv.lock" = "audiobooks/data/uv.lock"
 "assets/voices" = "audiobooks/data/assets/voices"
-"workspace/AGENTS.override.md" = "audiobooks/data/workspace/AGENTS.override.md"
+"assets/workspace-contract.md" = "audiobooks/data/assets/workspace-contract.md"
 ".codex/agents" = "audiobooks/data/.codex/agents"
+"skills" = "audiobooks/data/skills"
 
 [dependency-groups]
 dev = [

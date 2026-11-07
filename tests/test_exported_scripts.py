@@ -91,7 +91,7 @@ def test_export_preserves_narrated_span_ledger(tmp_path: Path) -> None:
             text = unit.prepared_text
             for start, end in reversed(unit.note_call_spans):
                 text = text[:start] + text[end:]
-            text = " ".join(text.split())
+            text = "\n".join(" ".join(line.split()) for line in text.splitlines())
             dispositions.append(
                 Disposition(
                     id=uid,
