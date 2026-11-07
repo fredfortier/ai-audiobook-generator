@@ -1773,7 +1773,12 @@ def export(workspace: Path) -> None:
         for item in result.units:
             unit = indexed[item.id]
             coverage.append(
-                Coverage(unit_id=item.id, disposition=item.disposition, reason=item.reason)
+                Coverage(
+                    unit_id=item.id,
+                    disposition=item.disposition,
+                    reason=item.reason,
+                    speech_spans=[],
+                )
             )
             if item.disposition != "narrated":
                 continue
