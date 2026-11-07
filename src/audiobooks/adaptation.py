@@ -1177,6 +1177,8 @@ def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace:
     """Freeze an explicit revision and reuse only unchanged reviewed unit contracts."""
     workspace = work_path(workspace)
     revised_workspace = work_path(revised_workspace)
+    prepared = work_path(prepared)
+    brief_path = work_path(brief_path)
     old_saved, old_units, old_plan, old_brief = load_workspace_state(workspace)
     records = load_accepted_batches(workspace, old_saved, old_plan)
     _, new_units = admit(prepared)

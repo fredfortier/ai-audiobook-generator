@@ -127,3 +127,17 @@ def test_runtime_resources_and_relative_preparation_paths_survive_external_calle
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "adaptation/manifest.json").is_file()
     assert not (caller / "adaptation").exists()
+
+    revision = invoke(
+        caller,
+        "adapt",
+        "revise",
+        "adaptation",
+        "prepared",
+        "brief.json",
+        "revision",
+        environment={"WORKSPACE_DIR": str(tmp_path)},
+    )
+    assert revision.returncode == 0, revision.stderr
+    assert (tmp_path / "revision/manifest.json").is_file()
+    assert not (caller / "revision").exists()
