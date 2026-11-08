@@ -1,0 +1,11 @@
+[project]
+name = "chatterbox-script"
+version = "0.1.0"
+description = "Typed tagged Markdown exchange format for original Chatterbox."
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = ["panflute>=2.3.1", "pydantic>=2.13.5", "pypandoc-binary>=1.17"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

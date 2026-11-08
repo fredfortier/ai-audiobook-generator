@@ -115,15 +115,10 @@ def project_text(element: pf.Element) -> str:
 
 def write_script(script: Script) -> str:
     blocks: list[pf.Block] = []
+    defaults = script.defaults.model_dump()
     for s in script.speech:
         attrs = {"voice": s.voice}
-        attrs.update(
-            {
-                k: str(v)
-                for k, v in s.parameters.model_dump().items()
-                if v != script.defaults.model_dump()[k]
-            }
-        )
+        attrs.update({k: str(v) for k, v in s.parameters.model_dump().items() if v != defaults[k]})
         body = (
             [pf.Header(*literal_inlines(s.paragraphs[0]), level=s.heading_level)]
             if s.heading_level

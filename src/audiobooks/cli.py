@@ -1,6 +1,7 @@
 """Shared command line for the AI Audiobook Generator plugin."""
 
 from pathlib import Path
+from typing import Annotated
 
 import typer
 from typer._completion_shared import get_completion_script
@@ -54,7 +55,9 @@ def export(delivery: Path, variant: str | None = None, replace_hash: str | None 
 
 
 @app.command()
-def completion(shell: str = typer.Argument(help="Shell type: bash, zsh, or fish.")) -> None:
+def completion(
+    shell: Annotated[str, typer.Argument(help="Shell type: bash, zsh, or fish.")],
+) -> None:
     """Print shell completion without relying on parent-shell detection."""
     if shell not in {"bash", "zsh", "fish"}:
         typer.echo(f"Shell '{shell}' is not supported. Choose bash, zsh, or fish.", err=True)

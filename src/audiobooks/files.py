@@ -7,7 +7,11 @@ import os
 import tempfile
 from pathlib import Path
 
-from pydantic import BaseModel, JsonValue, TypeAdapter
+from pydantic import BaseModel, ConfigDict, JsonValue, TypeAdapter
+
+
+class Record(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
 
 
 def read_json(path: Path) -> JsonValue:

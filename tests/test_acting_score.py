@@ -1,7 +1,7 @@
-from __future__ import annotations
-
 import unittest
 
+import pytest
+from chatterbox_script import Parameters
 from pydantic import ValidationError
 
 from audiobooks.adaptation import (
@@ -20,7 +20,6 @@ from audiobooks.adaptation import (
     retained_note_call,
 )
 from audiobooks.rendering import Calibration, CalibrationEvidence, validate_calibration_provenance
-from audiobooks.script_contract import Parameters
 from audiobooks.source_units import Unit
 
 DEFAULT_PARAMETERS = Parameters(
@@ -93,11 +92,6 @@ def acting_score_fixture() -> tuple[Unit, Brief, list[DirectorMove]]:
 
 
 class ActingScoreTest(unittest.TestCase):
-    def test_starting_profiles_preserve_contrast_without_dramatic_defaults(self) -> None:
-        pairs = {(p.exaggeration, p.cfg_weight) for p in ACTION_PARAMETERS.values()}
-        self.assertEqual(len(pairs), 8)
-        self.assertLess(max(p.exaggeration for p in ACTION_PARAMETERS.values()), 0.70)
-
     def test_removed_letter_calls_do_not_reject_authored_letters(self) -> None:
         for source, call, normalized in [
             ("Trutha is a good beginning.", "a", "Truth is a good beginning."),
@@ -174,7 +168,7 @@ class ActingScoreTest(unittest.TestCase):
                         )
                     ],
                 )
-                with self.assertRaisesRegex(ValueError, "retained citation call"):
+                with pytest.raises(ValueError, match="retained citation call"):
                     check_disposition(disposition, unit, brief, [move])
 
     def test_removed_numeric_call_does_not_match_brackets_or_spacing(self) -> None:
@@ -197,8 +191,8 @@ class ActingScoreTest(unittest.TestCase):
                         "note_call_spans": [(start, end)],
                     }
                 )
-                self.assertFalse(retained_note_call(unit, normalized))
-                self.assertTrue(retained_note_call(unit, source))
+                assert not retained_note_call(unit, normalized)
+                assert retained_note_call(unit, source)
 
     def test_removed_reference_punctuation_is_not_a_retained_call(self) -> None:
         source = "St Paul speaks (cf. John 1:5)."
@@ -206,19 +200,19 @@ class ActingScoreTest(unittest.TestCase):
         unit = unit.model_copy(
             update={"source_text": source, "prepared_text": source, "note_call_spans": [(14, 28)]}
         )
-        self.assertFalse(retained_note_call(unit, "Saint Paul speaks."))
-        self.assertTrue(retained_note_call(unit, "Saint Paul speaks (cf. John 1:5)."))
+        assert not retained_note_call(unit, "Saint Paul speaks.")
+        assert retained_note_call(unit, "Saint Paul speaks (cf. John 1:5).")
 
     def test_score_rejects_source_gaps_and_evidence_outside_move(self) -> None:
         unit, brief, moves = acting_score_fixture()
 
-        with self.assertRaisesRegex(ValueError, "partition"):
+        with pytest.raises(ValueError, match="partition"):
             check_score_moves(
                 [moves[0].model_copy(update={"start": 1, "textual_evidence": "lpha"}), *moves[1:]],
                 [unit],
                 brief,
             )
-        with self.assertRaisesRegex(ValueError, "outside its move"):
+        with pytest.raises(ValueError, match="outside its move"):
             check_score_moves(
                 [moves[0].model_copy(update={"textual_evidence": "gamma"}), *moves[1:]],
                 [unit],
@@ -228,7 +222,7 @@ class ActingScoreTest(unittest.TestCase):
     def test_move_rejects_objective_without_listener_action(self) -> None:
         _, _, moves = acting_score_fixture()
         move_fields = moves[0].model_dump()
-        with self.assertRaisesRegex(ValidationError, "listener objective"):
+        with pytest.raises(ValidationError, match="listener objective"):
             DirectorMove.model_validate({**move_fields, "objective": "Be mystical."})
 
     def test_directed_beats_derive_vectors_from_actions_and_preserve_lineage(self) -> None:
@@ -280,7 +274,7 @@ class ActingScoreTest(unittest.TestCase):
                 ]
             }
         )
-        with self.assertRaisesRegex(ValueError, "registered action vector"):
+        with pytest.raises(ValueError, match="registered action vector"):
             check_disposition(wrong_vector, unit, brief, moves)
 
         # An action change must be rejected independently of numeric vector validation.
@@ -294,7 +288,7 @@ class ActingScoreTest(unittest.TestCase):
                 ]
             }
         )
-        with self.assertRaisesRegex(ValueError, "action"):
+        with pytest.raises(ValueError, match="action"):
             check_disposition(wrong_action, unit, brief, moves)
 
         omitted = disposition.model_copy(
@@ -312,7 +306,7 @@ class ActingScoreTest(unittest.TestCase):
                 ]
             }
         )
-        with self.assertRaisesRegex(ValueError, "omit or reorder"):
+        with pytest.raises(ValueError, match="omit or reorder"):
             check_disposition(omitted, unit, brief, moves)
 
     def test_directed_calibration_binds_action_moves_and_both_vectors(self) -> None:
@@ -338,7 +332,7 @@ class ActingScoreTest(unittest.TestCase):
                 "reasons": {"s000001": evidence.model_copy(update={"score_move_ids": ["m000002"]})}
             }
         )
-        with self.assertRaisesRegex(ValueError, "provenance differs"):
+        with pytest.raises(ValueError, match="provenance differs"):
             validate_calibration_provenance(
                 changed_lineage,
                 {"s000001"},

@@ -1,16 +1,11 @@
-from __future__ import annotations
-
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
-from audiobooks.epub_structure import inventory_epub, normalize_target
+from epub_structure.inventory import inventory_epub, normalize_target
 
-CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles><rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
-</container>"""
+from tests.test_epub_sections import CONTAINER_XML
 
 
 def write_epub(path: Path, *, broken_fragments: bool = False) -> None:
@@ -60,21 +55,19 @@ class EpubStructureTest(unittest.TestCase):
             write_epub(path)
             inventory = inventory_epub(path)
 
-        self.assertEqual(
-            [item.href for item in inventory.spine], ["text/ch 1.xhtml", "text/notes.xhtml"]
-        )
-        self.assertEqual([item.linear for item in inventory.spine], [True, False])
+        assert [item.href for item in inventory.spine] == ["text/ch 1.xhtml", "text/notes.xhtml"]
+        assert [item.linear for item in inventory.spine] == [True, False]
         nav = [node for node in inventory.navigation if node.source == "epub3-nav"]
         ncx = [node for node in inventory.navigation if node.source == "epub2-ncx"]
-        self.assertEqual(len(nav), 3)
-        self.assertEqual(len(ncx), 2)
-        self.assertIsNone(nav[0].raw_target)
-        self.assertEqual(nav[1].parent_id, nav[0].id)
-        self.assertEqual(nav[1].resource_href, "text/ch 1.xhtml")
-        self.assertEqual(nav[1].fragment, "ch 1")
-        self.assertTrue(nav[1].fragment_exists)
-        self.assertEqual(nav[1].spine_ordinal, 1)
-        self.assertTrue(ncx[0].fragment_exists)
+        assert len(nav) == 3
+        assert len(ncx) == 2
+        assert nav[0].raw_target is None
+        assert nav[1].parent_id == nav[0].id
+        assert nav[1].resource_href == "text/ch 1.xhtml"
+        assert nav[1].fragment == "ch 1"
+        assert nav[1].fragment_exists
+        assert nav[1].spine_ordinal == 1
+        assert ncx[0].fragment_exists
 
     def test_multiple_missing_fragments_remain_distinct_fail_stop_evidence(self) -> None:
         with TemporaryDirectory() as directory:
@@ -85,16 +78,17 @@ class EpubStructureTest(unittest.TestCase):
         nav_targets = [
             node for node in inventory.navigation if node.source == "epub3-nav" and node.raw_target
         ]
-        self.assertEqual([node.fragment for node in nav_targets], ["missing-a", "missing-b"])
-        self.assertTrue(all(node.resource_exists for node in nav_targets))
-        self.assertTrue(all(node.fragment_exists is False for node in nav_targets))
-        self.assertTrue(all("target fragment is absent" in node.issues for node in nav_targets))
+        assert [node.fragment for node in nav_targets] == ["missing-a", "missing-b"]
+        assert all((node.resource_exists for node in nav_targets))
+        assert all((node.fragment_exists is False for node in nav_targets))
+        assert all(("target fragment is absent" in node.issues for node in nav_targets))
 
     def test_target_normalization_rejects_external_and_package_escape(self) -> None:
-        self.assertEqual(
-            normalize_target("https://example.test/ch1", "nav/toc.xhtml"),
-            (None, None, ["external navigation target"]),
+        assert normalize_target("https://example.test/ch1", "nav/toc.xhtml") == (
+            None,
+            None,
+            ["external navigation target"],
         )
         resource, fragment, issues = normalize_target("../../outside.xhtml#x", "nav/toc.xhtml")
-        self.assertEqual((resource, fragment), ("../outside.xhtml", "x"))
-        self.assertIn("navigation target escapes package root", issues)
+        assert (resource, fragment) == ("../outside.xhtml", "x")
+        assert "navigation target escapes package root" in issues

@@ -107,7 +107,8 @@ From a checkout, install the shared CLI, then install the three skills with
 [Skills CLI](https://github.com/vercel-labs/skills) (requires Node.js):
 
 ```sh
-uv tool install --python 3.13 /absolute/path/to/ai-audiobook-generator
+uv build --all-packages
+uv tool install --python 3.13 --find-links "$PWD/dist" dist/audiobooks-0.1.0-py3-none-any.whl
 npx skills add /absolute/path/to/ai-audiobook-generator --global --skill preprocess-text adapt-text chatterbox
 ```
 
@@ -298,12 +299,13 @@ Content hashes bind source units, reviewed scripts, render requests, and saved a
 
 | Modules | Responsibility |
 | --- | --- |
-| [`epub_structure`](src/audiobooks/epub_structure.py), [`epub_sections`](src/audiobooks/epub_sections.py) | EPUB reading order and section evidence |
+| [`inventory`](packages/epub-structure/src/epub_structure/inventory.py), [`sections`](packages/epub-structure/src/epub_structure/sections.py) | EPUB reading order and section evidence |
 | [`source_units`](src/audiobooks/source_units.py) | Source admission, provenance, and work partitioning |
 | [`adaptation`](src/audiobooks/adaptation.py) | Briefs, acting scores, acceptance, revisions, and script export |
-| [`script_contract`](src/audiobooks/script_contract.py) | Typed script records and Markdown codec |
+| [`chatterbox_script`](packages/chatterbox-script/src/chatterbox_script/__init__.py) | Typed script records and Markdown codec |
 | [`segmentation`](src/audiobooks/segmentation.py), [`rendering`](src/audiobooks/rendering.py) | Token limits, frozen generation requests, and verified segment recovery |
-| [`assembly`](src/audiobooks/assembly.py), [`delivery`](src/audiobooks/delivery.py) | Sample-preserving assembly, M4B encoding, metadata verification, and export |
+| [`assembly`](src/audiobooks/assembly.py), [`delivery`](src/audiobooks/delivery.py) | Production assembly, encoding admission, and library export |
+| [`m4b_encoding`](packages/m4b-encoding/src/m4b_encoding/__init__.py) | AAC/M4B encoding and independent metadata/chapter verification |
 
 See the [production specification](skills/adapt-text/SPEC.md) for cross-stage invariants and
 acceptance conditions.
@@ -335,7 +337,7 @@ and the Chatterbox skill for final naming and verification.
 
 ## Development
 
-Run `uv sync --locked` in a checkout. [AGENTS.md](AGENTS.md) defines the development contract and
+Run `uv sync --all-packages --locked` in a checkout. [AGENTS.md](AGENTS.md) defines the development contract and
 required checks; [CI](https://github.com/fredfortier/ai-audiobook-generator/actions/workflows/python-checks.yml)
 runs those checks independently. The [test audit](tests/README.md) records regression coverage;
 [typing boundaries](docs/typing-boundaries.md) document external-library exceptions.
@@ -372,3 +374,13 @@ Built with [Chatterbox](https://github.com/resemble-ai/chatterbox),
 [EbookLib](https://github.com/aerkalov/ebooklib), [Pandoc](https://pandoc.org/),
 [Panflute](https://github.com/sergiocorreia/panflute), [NLTK](https://www.nltk.org/), and
 [FFmpeg](https://ffmpeg.org/). The retained Plotinus fixture includes its Project Gutenberg notice.
+
+## Conventional workspace
+
+One uv workspace and lockfile. `audiobooks` owns production policy, review, synthesis,
+assembly, resources, and export. It composes independent libraries under `packages/`:
+`epub-structure` (reading order/sections), `chatterbox-script` (tagged Markdown),
+and `m4b-encoding` (AAC/M4B and chapter verification). Each declares its dependencies;
+the shared environment provides no isolation.
+
+Use `uv sync --all-packages`, `uv sync --package epub-structure`, or `uv build --all-packages`.

@@ -150,7 +150,7 @@ def test_directed_revision_does_not_freeze_old_score_moves(tmp_path: Path) -> No
     write_atomic(brief_path, brief.model_dump())
     original = tmp_path / "old-adaptation"
     init(prepared, brief_path, original)
-    direction_task(original, section_ids=None)
+    direction_task(original)
     score_packet_path = next(
         path
         for path in (original / "direction" / "tasks").glob("d*.json")
@@ -195,7 +195,7 @@ def test_directed_revision_does_not_freeze_old_score_moves(tmp_path: Path) -> No
     batch = next(
         batch for batch in plan["batches"] if batch["section_id"] == narrated[0].section_id
     )
-    task(original, batch["id"], fragment_boundaries=None, owned_word_budget=6000)
+    task(original, batch["id"])
     active = json.loads((original / "tasks" / batch["id"] / "active.json").read_text())
     packet = WorkerPacket.model_validate_json(Path(active["packet_path"]).read_text())
     owned = [unit for unit in narrated if unit.id in batch["unit_ids"]]

@@ -1,0 +1,11 @@
+[project]
+name = "m4b-encoding"
+version = "0.1.0"
+description = "AAC/M4B encoding with independently probed metadata and chapter verification."
+license = "MIT"
+requires-python = ">=3.13"
+dependencies = ["pydantic>=2.13.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -18,18 +18,17 @@ from collections import Counter
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
-from typing import Literal
+from typing import Annotated, Literal
 
 import ebooklib
 import pypandoc
 import typer
+from epub_structure.inventory import EpubInventory, NavigationNode, inventory_epub
+from epub_structure.sections import select_sections
 from lxml import etree
 from pydantic import ConfigDict, Field
 
-from audiobooks.epub_sections import select_sections
-from audiobooks.epub_structure import EpubInventory, NavigationNode, inventory_epub
-from audiobooks.files import json_default
-from audiobooks.script_contract import Record
+from audiobooks.files import Record, json_default
 from audiobooks.source_units import sha256
 
 type NavigationSignature = tuple[str, str | None, str | None, int, bool | None]
@@ -272,7 +271,7 @@ def run_diagnostics(path: Path, temporary: Path, run: bool) -> Diagnostics:
 
 def audit_corpus(
     output: Path,
-    corpus: Path | None = typer.Option(None, envvar="TEXTS_CORPUS"),
+    corpus: Annotated[Path | None, typer.Option(envvar="TEXTS_CORPUS")] = None,
     seed: int = 20260919,
     sample_size: int = 40,
     diagnostics: bool = True,

@@ -1,6 +1,6 @@
 # Canonical original Chatterbox scripts
 
-Use the shared `audiobooks.script_contract` codec for both creation and parsing. Its dialect is `markdown_strict+fenced_divs+yaml_metadata_block`; formatting projects to words, never spoken syntax. Canonical text uses single spaces within lines and explicit verse line breaks.
+Use the shared `chatterbox_script` codec for both creation and parsing. Its dialect is `markdown_strict+fenced_divs+yaml_metadata_block`; formatting projects to words, never spoken syntax. Canonical text uses single spaces within lines and explicit verse line breaks.
 
 Front matter contains `adapt_text_version: 1`, `title`, `engine: chatterbox-original`, `language: en`, `voices` and six numeric `defaults`. Every chapter repeats the same registry/defaults. Manifest order governs script order.
 

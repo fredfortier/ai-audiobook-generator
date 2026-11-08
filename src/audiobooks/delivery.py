@@ -3,50 +3,23 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import os
 import re
 import shutil
-import subprocess
 import unicodedata
 from pathlib import Path
 
-from pydantic import ConfigDict, Field
+from m4b_encoding import Chapter, EncodingReport, Probe
+from m4b_encoding import encode_m4b as encode_audio
+from pydantic import ConfigDict
 from static_ffmpeg.run import (
     get_or_fetch_platform_executables_else_raise,  # pyright: ignore[reportUnknownVariableType]
 )
 
 from audiobooks.assembly import AssemblyRecord
-from audiobooks.files import write_atomic
-from audiobooks.script_contract import Record
+from audiobooks.files import Record, write_atomic
 from audiobooks.source_units import sha256
 from audiobooks.workspaces import work_path
-
-
-class ProbeStream(Record):
-    model_config = ConfigDict(extra="allow", strict=True)
-    codec_type: str = ""
-    codec_name: str = ""
-
-
-class ProbeFormat(Record):
-    model_config = ConfigDict(extra="allow", strict=True)
-    format_name: str = ""
-    tags: dict[str, str] = Field(default_factory=dict)
-
-
-class ProbeChapter(Record):
-    model_config = ConfigDict(extra="allow", strict=True)
-    start_time: str
-    end_time: str
-    tags: dict[str, str] = Field(default_factory=dict)
-
-
-class Probe(Record):
-    model_config = ConfigDict(extra="allow", strict=True)
-    streams: list[ProbeStream] = Field(default_factory=list)
-    format: ProbeFormat = Field(default_factory=ProbeFormat)
-    chapters: list[ProbeChapter] = Field(default_factory=list)
 
 
 class DeliveryIdentity(Record):
@@ -57,27 +30,9 @@ class DeliveryIdentity(Record):
     probe: Probe
 
 
-class VerifiedChapter(Record):
-    section_id: str
-    title: str
-    planned_start_frame: int
-    planned_end_frame: int
-    observed_start_seconds: float
-    observed_end_seconds: float
-
-
-class DeliveryManifest(DeliveryIdentity):
-    ffmpeg_version: str
-    ffprobe_version: str
-    ffmpeg_arguments: list[str]
-    input_audio_hash: str
-    ffmetadata_hash: str
+class DeliveryManifest(EncodingReport):
+    delivery_version: int
     assembly_record_hash: str
-    codec: str
-    bitrate: str
-    gain_db: float
-    timestamp_tolerance_seconds: float
-    chapters: list[VerifiedChapter]
     audio_quality_verified: bool
 
 
@@ -169,31 +124,6 @@ def export_m4b(
     return target
 
 
-def _version(command: str) -> str:
-    result = subprocess.run([command, "-version"], capture_output=True, text=True, check=True)
-    return result.stdout.splitlines()[0]
-
-
-def _probe(path: Path, ffprobe: str) -> Probe:
-    result = subprocess.run(
-        [
-            ffprobe,
-            "-v",
-            "error",
-            "-show_format",
-            "-show_streams",
-            "-show_chapters",
-            "-of",
-            "json",
-            str(path),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return Probe.model_validate_json(result.stdout)
-
-
 def encode_m4b(
     assembly_directory: Path,
     output: Path,
@@ -202,134 +132,46 @@ def encode_m4b(
     gain_db: float = 0.0,
     system_ffmpeg: bool = False,
 ) -> DeliveryManifest:
-    """Encode one verified assembly and compare ffprobe chapters to its frame plan."""
+    """Admit a verified assembly, encode it, and bind its production provenance."""
     assembly_directory = work_path(assembly_directory)
     output = work_path(output)
     if output.exists() or output.with_suffix(".json").exists():
         raise ValueError("delivery output and manifest must be new")
-    if output.suffix.lower() != ".m4b" or not math.isfinite(gain_db):
-        raise ValueError("finite gain and an .m4b output are required")
+    audio = assembly_directory / "assembly.wav"
+    metadata = assembly_directory / "chapters.ffmetadata"
+    record_path = assembly_directory / "assembly.json"
+    record = AssemblyRecord.model_validate_json(record_path.read_text())
+    if sha256(audio) != record.audio_hash or sha256(metadata) != record.metadata_hash:
+        raise ValueError("assembly audio or chapter metadata changed")
+    if not record.exact_samples_preserved or not record.chapters:
+        raise ValueError("verified lossless assembly with explicit chapters required")
     if system_ffmpeg:
-        ffmpeg = shutil.which("ffmpeg")
-        ffprobe = shutil.which("ffprobe")
+        ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
         if ffmpeg is None or ffprobe is None:
             raise ValueError("--system-ffmpeg requires both ffmpeg and ffprobe on PATH")
     else:
         ffmpeg, ffprobe = get_or_fetch_platform_executables_else_raise()
-    assembly_path = assembly_directory / "assembly.wav"
-    metadata_path = assembly_directory / "chapters.ffmetadata"
-    record_path = assembly_directory / "assembly.json"
-    record = AssemblyRecord.model_validate_json(record_path.read_text())
-    if sha256(assembly_path) != record.audio_hash or sha256(metadata_path) != record.metadata_hash:
-        raise ValueError("assembly audio or chapter metadata changed")
-    if not record.exact_samples_preserved or not record.chapters:
-        raise ValueError("verified lossless assembly with explicit chapters required")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output.with_name("." + output.stem + ".partial.m4b")
-    if temporary.exists():
-        raise ValueError("stale partial delivery exists")
-    arguments = [
-        ffmpeg,
-        "-hide_banner",
-        "-nostdin",
-        "-v",
-        "error",
-        "-i",
-        str(assembly_path),
-        "-f",
-        "ffmetadata",
-        "-i",
-        str(metadata_path),
-        "-map",
-        "0:a:0",
-        "-map_metadata",
-        "1",
-        "-map_chapters",
-        "1",
-        "-vn",
-        "-af",
-        f"volume={gain_db:g}dB",
-        "-c:a",
-        "aac",
-        "-b:a",
-        bitrate,
-        "-movflags",
-        "+faststart",
-        str(temporary),
-    ]
-    try:
-        subprocess.run(arguments, capture_output=True, text=True, check=True)
-        probe = _probe(temporary, ffprobe)
-        audio_streams = [stream for stream in probe.streams if stream.codec_type == "audio"]
-        if len(audio_streams) != 1 or audio_streams[0].codec_name != "aac":
-            raise ValueError("delivery must contain exactly one AAC audio stream")
-        if "mp4" not in probe.format.format_name:
-            raise ValueError("delivery is not an MP4-family container")
-        tags = probe.format.tags
-        metadata = record.book_metadata
-        if tags.get("title") != metadata.title:
-            raise ValueError("delivery title metadata differs from the admitted source")
-        if metadata.author and tags.get("artist") != metadata.author:
-            raise ValueError("delivery author metadata differs from the admitted source")
-        expected = record.chapters
-        actual = probe.chapters
-        if len(actual) != len(expected):
-            raise ValueError("ffprobe chapter count differs from the frame plan")
-        rate = record.properties.sample_rate
-        tolerance_seconds = max(0.001, 2 / rate)
-        verified_chapters: list[VerifiedChapter] = []
-        for planned, observed in zip(expected, actual, strict=True):
-            planned_start = planned.start / rate
-            planned_end = planned.end / rate
-            observed_start = float(observed.start_time)
-            observed_end = float(observed.end_time)
-            title = observed.tags.get("title")
-            if title != planned.title:
-                raise ValueError("ffprobe chapter title differs from normalized section title")
-            if (
-                abs(observed_start - planned_start) > tolerance_seconds
-                or abs(observed_end - planned_end) > tolerance_seconds
-            ):
-                raise ValueError("ffprobe chapter time differs from the frame plan")
-            verified_chapters.append(
-                VerifiedChapter(
-                    section_id=planned.section_id,
-                    title=planned.title,
-                    planned_start_frame=planned.start,
-                    planned_end_frame=planned.end,
-                    observed_start_seconds=observed_start,
-                    observed_end_seconds=observed_end,
-                )
-            )
-        if any(
-            abs(float(actual[index].end_time) - float(actual[index + 1].start_time))
-            > tolerance_seconds
-            for index in range(len(actual) - 1)
-        ):
-            raise ValueError("ffprobe chapters are not contiguous")
-        temporary.replace(output)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
-    manifest = DeliveryManifest.model_validate(
-        {
-            "delivery_version": 1,
-            "ffmpeg_version": _version(ffmpeg),
-            "ffprobe_version": _version(ffprobe),
-            "ffmpeg_arguments": arguments[:-1] + [str(output)],
-            "input_audio_hash": record.audio_hash,
-            "ffmetadata_hash": record.metadata_hash,
-            "assembly_record_hash": sha256(record_path),
-            "output_hash": sha256(output),
-            "codec": "aac",
-            "bitrate": bitrate,
-            "gain_db": gain_db,
-            "timestamp_tolerance_seconds": tolerance_seconds,
-            "chapters": verified_chapters,
-            "probe": probe,
-            "verification_passed": True,
-            "audio_quality_verified": False,
-        }
+    report = encode_audio(
+        audio,
+        metadata,
+        output,
+        sample_rate=record.properties.sample_rate,
+        chapters=[
+            Chapter(section_id=c.section_id, title=c.title, start_frame=c.start, end_frame=c.end)
+            for c in record.chapters
+        ],
+        title=record.book_metadata.title,
+        author=record.book_metadata.author,
+        ffmpeg=ffmpeg,
+        ffprobe=ffprobe,
+        bitrate=bitrate,
+        gain_db=gain_db,
+    )
+    manifest = DeliveryManifest(
+        **report.model_dump(),
+        delivery_version=1,
+        assembly_record_hash=sha256(record_path),
+        audio_quality_verified=False,
     )
     write_atomic(output.with_suffix(".json"), manifest)
     return manifest

@@ -13,7 +13,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
+import chatterbox_script
 import typer
+from chatterbox_script import Parameters, read_script
 from pydantic import Field, TypeAdapter
 
 from audiobooks.adaptation import (
@@ -29,9 +31,8 @@ from audiobooks.adaptation import (
 
 # Keep the local name in the verified-revision AST fingerprint while ownership
 # lives in the shared persistence module.
-from audiobooks.files import read_json
+from audiobooks.files import Record, read_json
 from audiobooks.files import write_atomic as atomic
-from audiobooks.script_contract import Parameters, Record, read_script
 from audiobooks.segmentation import generation_spans
 from audiobooks.source_units import identity, sha256
 from audiobooks.workspaces import REPOSITORY_ROOT, work_path
@@ -209,9 +210,10 @@ def validate_calibration_provenance(
 def runtime_hashes() -> dict[str, str]:
     return {
         "uv.lock": sha256(ROOT / "uv.lock"),
+        "chatterbox_script": sha256(Path(chatterbox_script.__file__)),
         **{
             "src/audiobooks/" + name: sha256(Path(__file__).parent / name)
-            for name in ("rendering.py", "segmentation.py", "sentences.py", "script_contract.py")
+            for name in ("rendering.py", "segmentation.py", "sentences.py")
         },
     }
 
@@ -663,10 +665,16 @@ def import_verified_revision(
     if current_fingerprint != verifier_fingerprint:
         raise ValueError("waveform-producing implementation differs from the verified revision")
     current_parameters = _definition_fingerprint(
-        Path(__file__).with_name("script_contract.py"), {"Record", "Parameters"}
+        Path(chatterbox_script.__file__), {"Record", "Parameters"}
     )
     verifier_parameters = _definition_fingerprint(
-        verifier_checkout / "src" / "audiobooks" / "script_contract.py", {"Record", "Parameters"}
+        verifier_checkout
+        / "packages"
+        / "chatterbox-script"
+        / "src"
+        / "chatterbox_script"
+        / "__init__.py",
+        {"Record", "Parameters"},
     )
     if current_parameters != verifier_parameters:
         raise ValueError("generation control schema differs from the verified revision")
