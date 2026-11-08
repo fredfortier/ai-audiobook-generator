@@ -257,7 +257,16 @@ def plan(
         raise ValueError("use a new render workspace")
     if not 0 < token_limit <= T3Config().max_text_tokens:
         raise ValueError("explicit supported device and budget within original T3 context required")
-    adaptation = adaptation.resolve()
+    adaptation = work_path(adaptation)
+    clause_cuts = work_path(clause_cuts)
+    if calibrated_script_dir is not None:
+        calibrated_script_dir = work_path(calibrated_script_dir)
+    if calibration_record is not None:
+        calibration_record = work_path(calibration_record)
+    if seed_overrides is not None:
+        seed_overrides = work_path(seed_overrides)
+    if reuse_from is not None:
+        reuse_from = work_path(reuse_from)
     model_path = model_path.resolve()
     manifest_path = adaptation / "manifest.json"
     manifest = AdaptationManifest.model_validate_json(manifest_path.read_text())
@@ -684,7 +693,10 @@ def import_verified_revision(
     for segment in plan.segments:
         previous = prior_by_id.get(segment.id)
         current_request = segment.model_dump(exclude_unset=True, exclude={"section_id"})
-        if previous is None or previous.model_dump(exclude_unset=True) != current_request:
+        if (
+            previous is None
+            or previous.model_dump(exclude_unset=True, exclude={"section_id"}) != current_request
+        ):
             raise ValueError("generation request differs from verified revision: " + segment.id)
         source = prior_workspace / "audio" / (segment.id + ".wav")
         prior_record = AudioRecord.model_validate_json(source.with_suffix(".json").read_text())

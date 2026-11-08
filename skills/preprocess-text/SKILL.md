@@ -9,7 +9,7 @@ Produce an admitted source bundle that `adapt-text` can process without scraping
 
 Put generated work under `$WORKSPACE_DIR/<book-name>/prepared/`. Set `WORKSPACE_DIR` to a persistent directory outside the plugin cache. If unset or empty, the fallback is `~/Audiobooks/work/`. The repository runtime resolves relative work paths below that directory.
 
-Read `<runtime-root>/workspace/AGENTS.override.md` (locate the runtime as described below) before creating book work. Before preparation, create or read `$WORKSPACE_DIR/<book-name>/WORKPAD.md` under the repository contract. Establish its `Blueprint` from the admitted source and requested audiobook scope. Record material reading-order, encoding, structure, edition or provenance peculiarities and every consequential preparation decision; omit routine conversion notes.
+Read `<runtime-root>/assets/workspace-contract.md` (locate the runtime as described below) before creating book work. Before preparation, create or read `$WORKSPACE_DIR/<book-name>/WORKPAD.md` under the repository contract. Establish its `Blueprint` from the admitted source and requested audiobook scope. Record material reading-order, encoding, structure, edition or provenance peculiarities and every consequential preparation decision; omit routine conversion notes.
 
 ## Tools and admission
 

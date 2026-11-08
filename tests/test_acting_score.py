@@ -93,6 +93,11 @@ def acting_score_fixture() -> tuple[Unit, Brief, list[DirectorMove]]:
 
 
 class ActingScoreTest(unittest.TestCase):
+    def test_starting_profiles_preserve_contrast_without_dramatic_defaults(self) -> None:
+        pairs = {(p.exaggeration, p.cfg_weight) for p in ACTION_PARAMETERS.values()}
+        self.assertEqual(len(pairs), 8)
+        self.assertLess(max(p.exaggeration for p in ACTION_PARAMETERS.values()), 0.70)
+
     def test_removed_letter_calls_do_not_reject_authored_letters(self) -> None:
         for source, call, normalized in [
             ("Trutha is a good beginning.", "a", "Truth is a good beginning."),
@@ -265,7 +270,11 @@ class ActingScoreTest(unittest.TestCase):
             update={
                 "beats": [
                     disposition.beats[0].model_copy(
-                        update={"parameters": ACTION_PARAMETERS["PROBE"]}
+                        update={
+                            "parameters": ACTION_PARAMETERS["CLARIFY"].model_copy(
+                                update={"exaggeration": 0.9}
+                            )
+                        }
                     ),
                     *disposition.beats[1:],
                 ]
@@ -273,6 +282,20 @@ class ActingScoreTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "registered action vector"):
             check_disposition(wrong_vector, unit, brief, moves)
+
+        # An action change must be rejected independently of numeric vector validation.
+        wrong_action = disposition.model_copy(
+            update={
+                "beats": [
+                    disposition.beats[0].model_copy(
+                        update={"action": "WARN", "parameters": ACTION_PARAMETERS["WARN"]}
+                    ),
+                    *disposition.beats[1:],
+                ]
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "action"):
+            check_disposition(wrong_action, unit, brief, moves)
 
         omitted = disposition.model_copy(
             update={
@@ -324,3 +347,48 @@ class ActingScoreTest(unittest.TestCase):
                 {"s000001": realized},
                 True,
             )
+
+
+def test_verse_line_boundaries_cannot_be_flattened_during_normalization() -> None:
+    unit, brief, _ = acting_score_fixture()
+    source = "Alpha\nbeta gamma"
+    unit = unit.model_copy(update={"kind": "verse", "source_text": source, "prepared_text": source})
+    move = DirectorMove(
+        id="mverse",
+        unit_id=unit.id,
+        start=0,
+        end=len(source),
+        action="CLARIFY",
+        objective="CLARIFY the listener to follow the verse by retaining its lines.",
+        textual_evidence="Alpha",
+    )
+    disposition = Disposition(
+        id=unit.id,
+        disposition="narrated",
+        normalized_text=source,
+        beats=[
+            Beat(
+                start=0,
+                end=len(source),
+                voice=brief.narrator,
+                action="CLARIFY",
+                score_move_ids=[move.id],
+                parameters=ACTION_PARAMETERS["CLARIFY"],
+            )
+        ],
+    )
+    check_disposition(disposition, unit, brief, [move])
+    flattened = disposition.model_copy(
+        update={
+            "normalized_text": source.replace("\n", " "),
+            "edits": [
+                Edit(before=source, after=source.replace("\n", " "), reason="Flattened verse.")
+            ],
+        }
+    )
+    try:
+        check_disposition(flattened, unit, brief, [move])
+    except ValueError as error:
+        assert "verse line boundaries" in str(error)
+    else:
+        raise AssertionError("flattened verse was accepted")

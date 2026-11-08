@@ -29,7 +29,7 @@ from audiobooks.source_units import (
     sections,
     sha256,
 )
-from audiobooks.workspaces import work_path
+from audiobooks.workspaces import REPOSITORY_ROOT, work_path
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
 
@@ -53,71 +53,27 @@ ACTION_MEANINGS: dict[Action, str] = {
     "RESOLVE": "land and retain a concluding distinction or settled alternative",
 }
 
+# Restrained starting candidates; rationale and audition limits: skills/adapt-text/SPEC.md.
+_ACTION_CONDITIONING: dict[Action, tuple[float, float]] = {
+    "CLARIFY": (0.40, 0.50),
+    "PROBE": (0.50, 0.40),
+    "CONVINCE": (0.60, 0.50),
+    "WARN": (0.50, 0.30),
+    "INVITE": (0.40, 0.40),
+    "EXALT": (0.60, 0.30),
+    "URGE": (0.60, 0.40),
+    "RESOLVE": (0.40, 0.30),
+}
 ACTION_PARAMETERS: dict[Action, Parameters] = {
-    "CLARIFY": Parameters(
-        exaggeration=0.55,
-        cfg_weight=0.40,
+    action: Parameters(
+        exaggeration=exaggeration,
+        cfg_weight=cfg_weight,
         temperature=0.80,
         repetition_penalty=1.20,
         min_p=0.05,
         top_p=1.00,
-    ),
-    "PROBE": Parameters(
-        exaggeration=0.78,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "CONVINCE": Parameters(
-        exaggeration=0.84,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "WARN": Parameters(
-        exaggeration=0.90,
-        cfg_weight=0.28,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "INVITE": Parameters(
-        exaggeration=0.76,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "EXALT": Parameters(
-        exaggeration=1.00,
-        cfg_weight=0.26,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "URGE": Parameters(
-        exaggeration=0.94,
-        cfg_weight=0.28,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "RESOLVE": Parameters(
-        exaggeration=0.72,
-        cfg_weight=0.34,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
+    )
+    for action, (exaggeration, cfg_weight) in _ACTION_CONDITIONING.items()
 }
 
 
@@ -740,6 +696,8 @@ def check_disposition(
     text = item.normalized_text
     if not text or text != "\n".join(" ".join(line.split()) for line in text.split("\n")):
         raise ValueError("missing or noncanonical normalized text")
+    if unit.kind == "verse" and len(text.splitlines()) != len(unit.prepared_text.splitlines()):
+        raise ValueError("verse line boundaries changed: " + item.id)
     if text != unit.prepared_text and not item.edits:
         raise ValueError("changed text needs edit reasons")
     if re.search(r"\d", text) and not any(
@@ -876,6 +834,8 @@ def validate_result(
 def init(prepared: Path, brief_path: Path, workspace: Path) -> None:
     """Freeze an admitted bundle, surveyed brief and deterministic plan."""
     workspace = work_path(workspace)
+    prepared = work_path(prepared)
+    brief_path = work_path(brief_path)
     if workspace.exists():
         raise ValueError("workspace exists; use status to resume")
     manifest, units = admit(prepared, required_version=2)
@@ -1002,11 +962,7 @@ def direction_task(
         "reference_paths": [
             str(
                 (
-                    Path(__file__).resolve().parents[2]
-                    / "skills"
-                    / "adapt-text"
-                    / "references"
-                    / "acting-direction.md"
+                    REPOSITORY_ROOT / "skills" / "adapt-text" / "references" / "acting-direction.md"
                 ).resolve()
             )
         ],
@@ -1177,6 +1133,8 @@ def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace:
     """Freeze an explicit revision and reuse only unchanged reviewed unit contracts."""
     workspace = work_path(workspace)
     revised_workspace = work_path(revised_workspace)
+    prepared = work_path(prepared)
+    brief_path = work_path(brief_path)
     old_saved, old_units, old_plan, old_brief = load_workspace_state(workspace)
     records = load_accepted_batches(workspace, old_saved, old_plan)
     _, new_units = admit(prepared)
@@ -1349,15 +1307,7 @@ def task(
         },
         "pronunciation_watchlist": brief.pronunciation_watchlist,
         "reference_paths": [
-            str(
-                (
-                    Path(__file__).resolve().parents[2]
-                    / "skills"
-                    / "adapt-text"
-                    / "references"
-                    / name
-                ).resolve()
-            )
+            str((REPOSITORY_ROOT / "skills" / "adapt-text" / "references" / name).resolve())
             for name in (
                 "worker-procedure.md",
                 "source-and-normalization.md",
@@ -1773,7 +1723,12 @@ def export(workspace: Path) -> None:
         for item in result.units:
             unit = indexed[item.id]
             coverage.append(
-                Coverage(unit_id=item.id, disposition=item.disposition, reason=item.reason)
+                Coverage(
+                    unit_id=item.id,
+                    disposition=item.disposition,
+                    reason=item.reason,
+                    speech_spans=[],
+                )
             )
             if item.disposition != "narrated":
                 continue

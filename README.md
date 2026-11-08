@@ -218,6 +218,11 @@ calibration can change how an action sounds, but not what the passage means. The
 in [source-exact acting direction](skills/adapt-text/references/acting-direction.md) and
 [Chatterbox performance mapping](skills/adapt-text/references/performance.md).
 
+The eight actions use distinct restrained starting profiles, with exaggeration from .40 to .60.
+The source-backed [acting specification](skills/adapt-text/SPEC.md#acting-direction-and-control-provenance)
+records textbook pages, direct model code, two-seed trials and each numerical decision’s limits.
+Audition actual text and explain material choices with action names, exact controls and audio evidence.
+
 ## The domain pipeline
 
 The five workspace stages are also the five production boundaries:
@@ -325,7 +330,7 @@ their stage records.
 
 Set `EXPORT_DIR` to the finished-library root. Successful deliveries are exported as stable,
 source-derived M4B paths; named sibling performances can coexist as variants. See
-[`workspace/AGENTS.override.md`](workspace/AGENTS.override.md) for the editorial workspace contract
+[`assets/workspace-contract.md`](assets/workspace-contract.md) for the editorial workspace contract
 and the Chatterbox skill for final naming and verification.
 
 ## Development

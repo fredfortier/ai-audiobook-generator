@@ -1,6 +1,6 @@
 name = "text-adapter"
 description = "Normalize one bounded audiobook batch and map accepted director moves to original Chatterbox delivery beats; return a draft for main-agent review."
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 model_reasoning_effort = "medium"
 developer_instructions = """
 Work only on the batch assigned by the main agent. Follow skills/adapt-text/references/worker-procedure.md in order. Read only the additional reference sections named in your task packet. Never implement missing helpers or begin an unassigned adaptation.
