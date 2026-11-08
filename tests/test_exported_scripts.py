@@ -75,7 +75,7 @@ def test_export_preserves_narrated_span_ledger(tmp_path: Path) -> None:
     plan = AdaptationPlan.model_validate_json((workspace / "plan.json").read_text())
     indexed = {unit.id: unit for unit in units}
     for batch in plan.batches:
-        task(workspace, batch.id, fragment_boundaries=None, owned_word_budget=6000)
+        task(workspace, batch.id)
         packet_path = next(
             path
             for path in (workspace / "tasks" / batch.id).glob("*.json")
@@ -144,11 +144,11 @@ def test_export_preserves_narrated_span_ledger(tmp_path: Path) -> None:
     ledger = TypeAdapter(list[Coverage]).validate_json((workspace / "coverage.json").read_text())
     narrated = [item for item in ledger if item.disposition == "narrated"]
     assert narrated
-    assert all(item.speech_spans for item in narrated)
+    assert all((item.speech_spans for item in narrated))
     accepted = [
         AcceptedBatch.model_validate_json(path.read_text())
         for path in (workspace / "work").glob("*.json")
     ]
-    assert sum(len(item.speech_spans) for item in narrated) == sum(
-        len(unit.beats) for batch in accepted for unit in batch.result.units
+    assert sum((len(item.speech_spans) for item in narrated)) == sum(
+        (len(unit.beats) for batch in accepted for unit in batch.result.units)
     )

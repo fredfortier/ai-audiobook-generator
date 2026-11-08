@@ -6,9 +6,9 @@ provenance, reviewed direction, generation identities, and delivery verification
 Run all four checks from the repository root:
 
 ```sh
-uv sync --locked
+uv sync --all-packages --locked
 uv run python -m pytest -q
-uv run basedpyright src tests
+uv run basedpyright src packages tests
 uv run ruff check .
 uv run black --check .
 ```

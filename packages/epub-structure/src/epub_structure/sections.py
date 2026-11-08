@@ -21,8 +21,8 @@ from lxml import etree
 from lxml.etree import _Element as Element  # pyright: ignore[reportPrivateUsage]
 from pydantic import Field
 
-from audiobooks.epub_structure import EpubInventory, NavigationNode, NavigationSource
-from audiobooks.script_contract import Record
+from epub_structure import Record
+from epub_structure.inventory import EpubInventory, NavigationNode, NavigationSource
 
 SourceKind = Literal["epub3-nav", "epub2-ncx", "content-structure", "calibre-candidate", "manual"]
 
@@ -52,7 +52,6 @@ class SectionBoundary(Record):
     title_origin: Literal["content-heading", "navigation-label-projection", "accessible-name"]
     title_path: list[str]
     content_label: str | None
-    delivery_chapter: bool
     evidence: list[SelectionEvidence] = Field(min_length=1)
     issues: list[str]
 
@@ -404,7 +403,6 @@ def _boundary_from_node(
         title_origin=origin,
         title_path=_navigation_title_path(node, all_nodes),
         content_label=content,
-        delivery_chapter=True,
         evidence=evidence,
         issues=[],
     )
@@ -564,7 +562,6 @@ def select_sections(
             title_origin="content-heading" if candidate.title_location else "accessible-name",
             title_path=[candidate.title or ""],
             content_label=candidate.title,
-            delivery_chapter=True,
             evidence=[
                 SelectionEvidence(
                     source_kind="content-structure",

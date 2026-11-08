@@ -20,7 +20,7 @@ jobs:
           - check: Tests
             command: python -m pytest -q
           - check: Types
-            command: basedpyright src tests
+            command: basedpyright src packages tests
           - check: Lint
             command: ruff check .
           - check: Formatting

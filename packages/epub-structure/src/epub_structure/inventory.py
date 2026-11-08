@@ -20,7 +20,7 @@ from lxml import etree
 from lxml.etree import _Element as Element  # pyright: ignore[reportPrivateUsage]
 from pydantic import Field
 
-from audiobooks.script_contract import Record
+from epub_structure import Record
 
 NavigationSource = Literal["epub3-nav", "epub2-ncx"]
 

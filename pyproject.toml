@@ -8,10 +8,13 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
-    "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@master",
+    "chatterbox-script",
+    "chatterbox-tts @ git+https://github.com/resemble-ai/chatterbox.git@5de7a54aa4e5e2baadb0182dde554908b48b85c2",
     "ebooklib>=0.20",
+    "epub-structure",
     "faster-whisper>=1.2.1",
     "lxml>=6.1.3",
+    "m4b-encoding",
     "nltk>=3.10.3",
     "numpy>=2.5.3",
     "panflute>=2.3.1",
@@ -19,6 +22,7 @@ dependencies = [
     "pypandoc-binary>=1.17",
     "soundfile>=0.14.0",
     "static-ffmpeg>=3.0",
+    "torch>=2.6",
     "typer>=0.27.2",
 ]
 
@@ -45,6 +49,14 @@ allow-direct-references = true
 ".codex/agents" = "audiobooks/data/.codex/agents"
 "skills" = "audiobooks/data/skills"
 
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+epub-structure = { workspace = true }
+chatterbox-script = { workspace = true }
+m4b-encoding = { workspace = true }
+
 [dependency-groups]
 dev = [
     "basedpyright>=1.40.2",
@@ -55,7 +67,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "packages"]
 addopts = "--import-mode=importlib"
 
 [tool.black]
@@ -72,5 +84,5 @@ select = ["E4", "E7", "E9", "F", "I", "B009", "B010", "RUF059"]
 [tool.basedpyright]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
-include = ["src", "tests"]
+include = ["src", "packages", "tests"]
 reportUnnecessaryTypeIgnoreComment = "error"

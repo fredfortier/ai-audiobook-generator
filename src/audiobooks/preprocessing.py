@@ -5,10 +5,10 @@ import shutil
 from pathlib import Path
 
 import typer
+from epub_structure.inventory import inventory_epub
+from epub_structure.sections import select_sections
 from pydantic import TypeAdapter
 
-from audiobooks.epub_sections import select_sections
-from audiobooks.epub_structure import inventory_epub
 from audiobooks.source_units import Section, admit, sha256
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)

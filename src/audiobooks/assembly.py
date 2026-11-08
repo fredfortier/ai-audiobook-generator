@@ -8,7 +8,7 @@ from typing import Literal
 import typer
 from pydantic import Field, TypeAdapter
 
-from audiobooks.files import write_atomic
+from audiobooks.files import Record, write_atomic
 from audiobooks.rendering import (
     AudioProperties,
     AudioRecord,
@@ -17,7 +17,6 @@ from audiobooks.rendering import (
     load_plan,
     verified_segment,
 )
-from audiobooks.script_contract import Record
 from audiobooks.source_units import identity, sha256
 from audiobooks.workspaces import work_path
 

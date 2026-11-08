@@ -9,13 +9,13 @@ import uuid
 from difflib import SequenceMatcher
 from itertools import groupby
 from pathlib import Path
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
 import typer
+from chatterbox_script import Parameters, Script, Speech, read_script, write_script
 from pydantic import ConfigDict, Field, TypeAdapter, model_validator
 
-from audiobooks.files import read_json, write_atomic
-from audiobooks.script_contract import Parameters, Record, Script, Speech, read_script, write_script
+from audiobooks.files import Record, read_json, write_atomic
 from audiobooks.sentences import sentence_spans
 from audiobooks.source_units import (
     AdaptationPlan,
@@ -893,7 +893,7 @@ def init(prepared: Path, brief_path: Path, workspace: Path) -> None:
 
 @app.command("direction-task")
 def direction_task(
-    workspace: Path, section_ids: str | None = typer.Option(None, "--sections")
+    workspace: Path, section_ids: Annotated[str | None, typer.Option("--sections")] = None
 ) -> None:
     """Freeze a whole-short-work or complete-section packet for a semantic director."""
     workspace = work_path(workspace)
@@ -1205,8 +1205,8 @@ def revise(workspace: Path, prepared: Path, brief_path: Path, revised_workspace:
 def task(
     workspace: Path,
     batch_id: str,
-    fragment_boundaries: Path | None = typer.Option(None),
-    owned_word_budget: int = typer.Option(6000, min=1),
+    fragment_boundaries: Annotated[Path | None, typer.Option()] = None,
+    owned_word_budget: Annotated[int, typer.Option(min=1)] = 6000,
 ) -> None:
     """Create one bounded worker packet; refuse accepted or already active work."""
     workspace = work_path(workspace)

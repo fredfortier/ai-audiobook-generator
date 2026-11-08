@@ -1,6 +1,6 @@
 # External typing boundaries
 
-`uv run basedpyright src tests` must report zero errors and warnings in strict mode. The checker
+`uv run basedpyright src packages tests` must report zero errors and warnings in strict mode. The checker
 configuration disables no diagnostics, excludes no application modules, and rejects unnecessary
 ignore comments. Application records use Pydantic models; persisted input is validated before its
 fields enter domain logic. `Any`, casts, dynamic attribute access, and application-code exclusions
@@ -13,7 +13,7 @@ environment reproduces that diagnostic; it does not justify suppressing errors i
 
 | Boundary | Diagnostic | Evidence and justification |
 | --- | --- | --- |
-| `_Element` imports in `epub_structure.py` and `epub_sections.py` | `reportPrivateUsage` | lxml's [documented concrete element class](https://lxml.de/api/lxml.etree._Element-class.html) is named `_Element`. The installed `types-lxml==2026.2.16` signatures use that class for element factories and traversal. Importing it once as `Element` preserves those maintained types; only the underscore-name diagnostic is suppressed. |
+| `_Element` imports in `epub_structure/inventory.py` and `epub_structure/sections.py` | `reportPrivateUsage` | lxml's [documented concrete element class](https://lxml.de/api/lxml.etree._Element-class.html) is named `_Element`. The installed `types-lxml==2026.2.16` signatures use that class for element factories and traversal. Importing it once as `Element` preserves those maintained types; only the underscore-name diagnostic is suppressed. |
 | SoundFile imports in `assembly.py`, `rendering.py`, and `test_delivery.py` | `reportMissingTypeStubs` | The installed `soundfile==0.14.0` module annotates `read`, `write`, and `SoundFile`, including NumPy return types, but its distribution contains no `py.typed` marker. Package-file inspection reproduces the missing marker. Only the import diagnostic is suppressed; source annotations still check all audio calls and returned values. The real FFmpeg assembly test verifies sample preservation and M4B chapters. |
 | `torch.manual_seed(segment.seed)` in `rendering.py` | `reportUnknownMemberType` | The locked Python 3.13 environment installs `torch==2.6.0`. Its `torch/random.py` defines `manual_seed(seed) -> torch._C.Generator`: the **seed parameter** lacks an annotation. Its implementation converts that argument with `int(seed)`. The [documented argument is an integer](https://docs.pytorch.org/docs/2.6/generated/torch.manual_seed.html); the caller supplies the Pydantic-validated integer `RenderSegment.seed`, with the generation plan enforcing the unsigned 32-bit seed range. The exclusion applies only to this member lookup, and the return value is unused. |
 

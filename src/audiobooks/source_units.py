@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Literal
 
 import panflute as pf
+from chatterbox_script import parse_document, project_text
 from pydantic import ConfigDict, Field
 
-from audiobooks.files import json_default
-from audiobooks.script_contract import Record, parse_document, project_text
+from audiobooks.files import Record, json_default
 
 
 def sha256(path: Path) -> str:
