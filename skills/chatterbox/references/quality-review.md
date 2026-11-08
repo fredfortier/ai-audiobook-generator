@@ -45,9 +45,25 @@ of ordinary book production.
 Judge intelligibility, unintended repeated/garbled words, consonants, breath/decay, clicks, abrupt
 timbre changes, syntactic pauses and sustained pace against the source. Check whether warning,
 exhortation or exaltation becomes aggressive or shouted prematurely. Review its lead-in and
-release; reserve extreme force for an earned climax without flattening the rest of the acting.
+release against the frozen speaking scale, preserving distinctions without imposing a climax.
 Names should flow as whole words, without coaching-induced syllabic attacks. Necessary wording or
 pronunciation-cue changes return to adaptation; numerical acting repairs use calibration.
+
+For acting judgments, compare native, unnormalized audio with the accepted action and its
+neighbors. Record the complete phrase interval, move IDs, audio hash and intended listener effect.
+Use voiced F0 median/range, short-window RMS or loudness, peak/clipping, pause placement and spoken
+word rate as supporting features. State the estimator, settings and voiced-frame limits; pitch
+tracking can mistake breath, creak or octaves, and reference style affects the result. Compare
+matched candidates and local context rather than imposing universal pitch or decibel cutoffs.
+Neither high pitch nor a loud peak alone proves overacting, and flat statistics do not prove a
+thought was communicated. Reconcile measurements with exact source coverage and any qualified
+perceptual evidence; report disagreements and the limits of the available method. Without a working
+perceptual check, limit acting judgments to the supported acoustic properties rather than claiming
+an emotion or exact interpretive effect was heard. ASR cannot establish an acting choice. The agent owns the production selection
+when the user delegates it; document its source/model/measurement defense and finish the authorized
+work without inventing a human approval gate. Preserve the distinction between that judgment and
+an independently qualified perceptual verdict under the
+[acting specification](../../adapt-text/SPEC.md#selection-decision-and-complete-numerical-defense).
 
 ## Targeted escalation and stopping
 

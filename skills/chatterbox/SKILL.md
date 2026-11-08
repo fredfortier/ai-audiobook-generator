@@ -27,11 +27,12 @@ Run `audiobooks render plan <adaptation-workspace> <model-snapshot> <new-render-
 
 Choose representative segment IDs covering heading, sustained exposition, question, elevation, warning/exhortation, verse, longest clauses and each difficult name. Include joins across subdivisions and delivery changes. Run `audiobooks render generate <workspace> --segment-ids <comma-separated-IDs>` and apply [quality review](references/quality-review.md). Calibrate acting, punctuation and structural pauses together; prefer restrained rhetorical contrast over alternating presets.
 
-Preserve expressive intensity while checking that aggressive or loud registers do not arrive too
-quickly. Audition the build into a climax and its return to ordinary speech against the
+Use the deliberate, educated baseline unless the frozen brief requests another scale. Audition
+the build into a climax and its return to ordinary speech against the
 [acting limits](../adapt-text/references/acting-direction.md#intensity-and-vocal-restraint).
-Reserve extreme vocal force for rare passages that earn it; repair affected moves through the
-calibration workflow below rather than lowering the whole book's intensity.
+Preserve the accepted listener tasks when reducing overstatement. The action name never requires
+an intense vector. Apply the [exceptional-trial boundary and material-direction reporting](../adapt-text/references/performance.md)
+before trying heightened settings; report the source cue, action/moves, controls and deciding audio evidence.
 
 Keep authored words. For numerical acting/pacing candidates, write complete canonical scripts in a separate directory using the shared codec. `audiobooks render schema calibration` prints the record schema: `source_script_hashes` and `candidate_script_hashes` use the exact manifest `script_files` keys (for example `script/0001.md`), and `reasons` keys name every changed speech ID. Each reason identifies the accepted directing choice and score moves, the proposed vector, the audition evidence, and the realized candidate vector. Run `audiobooks render plan … --calibrated-script-dir <directory> --calibration-record <record-json>` in a fresh workspace. The helper permits only the six per-speech numeric controls to change and checks exact text, voice, heading, order and coverage. Review candidates before choosing the final scripts; this changes acting without repeating editorial normalization. Do not collapse distinct move families into one global override unless matched auditions support every affected family.
 
