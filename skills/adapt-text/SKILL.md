@@ -23,6 +23,12 @@ Survey the section inventory; read each section's opening and closing body units
 
 For directed work use the single action registry in [performance.md](references/performance.md); do not add a book-specific palette or second choice. Every narrated character must belong to a delivery beat with one registered action vector. Undirected legacy work retains its brief-owned choices. Quotation marks alone never create another voice. Bind voices to `builtin` or real runtime-root-relative audio files; a missing custom file prevents synthesis readiness.
 
+Default to deliberate, educated address. Action labels specify listener tasks, not emotional
+intensity; begin with the restrained registry and audition before accepting a stronger realization.
+State material acting choices to the user in the eight-action vocabulary with source cues and
+concise listener objectives, then report the exact Chatterbox controls and audio evidence for
+material realization changes, following [performance.md](references/performance.md#make-material-direction-visible).
+
 Run `init <prepared> <brief-path> <workspace>`. The helper freezes source, brief, pages and batches. For existing work run `status <workspace>` and inspect active packets; file existence alone is not completion. Pages target six hundred words; batches contain at most ten pages and six thousand owned words without crossing sections or splitting ordinary paragraphs. This bound is sized for one coherent Luna paragraph-by-paragraph pass, including packet context and a complete structured result; prefer the largest section-preserving batch within it instead of ceremonial handoffs. Oversized input requires verified sentence fragments under one sequential worker contract before dispatch; do not truncate it.
 
 ## Direct the text before adaptation

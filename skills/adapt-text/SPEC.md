@@ -224,28 +224,270 @@ Public generation caps output at one thousand speech tokens. A text-token bound 
 
 ## Acting direction and control provenance
 
-The accepted score uses exactly eight listener-directed actions: `CLARIFY`, `PROBE`, `CONVINCE`,
-`WARN`, `INVITE`, `EXALT`, `URGE`, and `RESOLVE`. Rhetoric, punctuation, addressee, stakes, and
-neighboring moves supply boundary evidence. Each move carries one action, a transitive listener
-objective, and exact local evidence. It carries no parallel mood, Laban, intensity, tempo, palette,
-or trap field.
+### Authority and current correction
 
-Broad user cues are production constraints with explicit scopes and avoidance conditions. The
-director considers them against the exact source; conflicts affecting meaning, fidelity,
-intelligibility, or stability remain owner decisions. With no cue, textual action remains
-authoritative. A repeated global action or vector does not satisfy a cue merely because its
-adjective sounds compatible.
+The user requires differentiated acting, a deliberate educated performance, an explicit defense
+for every numeric decision, and disclosure of material directions in the eight-action vocabulary
+and actual Chatterbox grammar. The previous all-actions `.50/.50` design is withdrawn. The older `.55–1.00` expressive
+profiles are also superseded. After the 36-take comparisons, the user explicitly directs the agent
+to make educated decisions and complete production. The action-specific profiles below are selected
+as restrained starting settings; selection is an accountable production judgment, not a claim that
+these numbers guarantee a theatrical effect. Historical accepted scripts and
+control waves retain their original identities; changing this specification does not approve them.
+These are user-owned requirements and correction history, not findings attributed to a textbook.
 
-Original Chatterbox exposes exaggeration as one scalar expressive condition and CFG as conditional
-guidance; temperature, repetition penalty, min-p, and top-p act on token sampling. The authoritative
-registry maps each accepted action directly to one complete six-value candidate vector. The adapter
-copies that vector without arithmetic, deltas, boosts, hidden floors, clamps, or a second choice.
-The mapping remains an acoustic hypothesis until matched-text listening validates it.
+Use one acting-theory authority: Constantin Stanislavski, *An Actor Prepares*, translated by
+Elizabeth Reynolds Hapgood, Theatre Arts Books/Routledge, paperback 1989, text reset 2003,
+ISBN 9780878309832. Its identity is confirmed by the [publisher's edition record](https://www.routledge.com/An-Actor-Prepares/Hapgood-Stanislavski/p/book/9780878309832);
+its academic use is documented in [USC's acting syllabus](https://web-app.usc.edu/soc/syllabus/20241/62793.pdf).
+Page citations below refer to printed pages in the [consulted edition](https://www.craftfilmschool.com/userfiles/files/An%20Actor%20Prepares.pdf),
+whose PDF page number is printed page plus nine. No RSC pack, Hamlet speech, unsourced acting maxim,
+or second acting system supplies theory for this revision.
 
-The renderer may replace a proposed vector only through an exact-text calibration record. Final
-evidence retains the accepted move IDs, registered action, proposed vector, audition reason, and
-realized vector. A global calibration cannot erase distinct action families without matched evidence
-for each affected family.
+### Acting premises and their bounded application
+
+Objectives belong to units, use actionable verbs, and serve the work's larger purpose.[^acting-objective]
+Adjustments vary with circumstances and partners; variety is necessary, while display that displaces
+the objective becomes false.[^acting-adjustment] Intensity need not imply outward force, and
+intimate communication need not become shouting.[^acting-force]
+
+**Local application, with its bridge explicit:** this audiobook has a narrator rather than a cast
+of interacting stage characters. Treat the brief's attentive imagined interlocutor as the
+communication partner; make each local task serve the source argument. This transfers the book's
+objective/adjustment distinction to narration; it does not claim that the book prescribes TTS,
+audience-directed stage objectives, or any of the eight identifiers below. Its warning against
+playing to spectators is material: the narrator must pursue the argument with the interlocutor,
+not exhibit emotion to obtain an audience reaction.[^acting-partner]
+
+The existing eight identifiers are this project's operational vocabulary. Source interpretation
+supplies the particular task, evidence and boundaries; a name alone supplies no emotional magnitude.
+The following objectives define that local vocabulary and the distinctions an audition must test.
+
+| Action | Local task and material distinction | Evidence needed for a realization |
+| --- | --- | --- |
+| `CLARIFY` | Make the stated relation or qualification intelligible. | Hear the qualification and its connection without decorative emphasis obscuring either. |
+| `PROBE` | Engage the interlocutor with an unresolved question. | Hear the inquiry in its context; do not require a terminal pitch rise. |
+| `CONVINCE` | Seek assent through the stated reason or counterexample. | Hear the premise-to-conclusion contrast; force alone does not establish persuasion. |
+| `WARN` | Bring the stated adverse consequence into the interlocutor's consideration. | Hear which consequence matters; neither alarm nor shouting follows from the identifier. |
+| `INVITE` | Offer the source's image or possibility for consideration. | Hear room to consider that specific image; breathiness is not the objective. |
+| `EXALT` | Expand attention to the source's earned vision or magnitude. | Hear the change in scope in context; loudness or excitement alone does not establish it. |
+| `URGE` | Press the source's requested act upon the interlocutor. | Hear the act and the reason to undertake it; haste alone does not establish commitment. |
+| `RESOLVE` | Settle and retain the source's concluding distinction. | Hear what has been settled relative to the preceding inquiry; low pitch alone does not establish closure. |
+
+These are evaluation questions derived from the local tasks, not acoustic laws or quotations from
+Stanislavski. Interpret a conventional direction through the passage's objective, interlocutor and
+circumstances. For example, a request for urgency may concern the importance of undertaking an act;
+it does not establish a faster waveform. The bridge is the book's separation of objective from
+adjustment and its contrasting realizations of serious material, not a new universal dictionary of
+stage adjectives.[^acting-adjustment]
+
+[^acting-objective]: *An Actor Prepares*, ch. VII, pp. 124–129, 133–137 (units and actionable objectives), and ch. XV, pp. 293–300 (their relation to the whole). [Consulted text, p. 124](https://www.craftfilmschool.com/userfiles/files/An%20Actor%20Prepares.pdf#page=133).
+[^acting-adjustment]: Same book, ch. XI, pp. 242–249 (context, variety and displaced objectives), pp. 252, 256–259 (unexpected or borrowed adjustments). [P. 242](https://www.craftfilmschool.com/userfiles/files/An%20Actor%20Prepares.pdf#page=251).
+[^acting-force]: Same book, ch. III, pp. 37–39 (purpose and inward action), ch. XI, pp. 250–252 (distance, diction and contrasting vocal choices). [P. 250](https://www.craftfilmschool.com/userfiles/files/An%20Actor%20Prepares.pdf#page=259).
+[^acting-partner]: Same book, ch. VII, p. 129, and ch. XI, pp. 248–251 distinguish the partner from spectators. [P. 248](https://www.craftfilmschool.com/userfiles/files/An%20Actor%20Prepares.pdf#page=257).
+
+### What this exact engine implements
+
+Scope: original English `ChatterboxTTS`, code revision
+`5de7a54aa4e5e2baadb0182dde554908b48b85c2`, original model snapshot
+`5bb1f6ee58e50c3b8d408bc82a6d3740c2db6e18`. The [locked dependency](../../uv.lock)
+and each render's input hashes establish the implementation and weight identity. Multilingual,
+Turbo, Flash, hosted wrappers and modified example-project backends are distinct evidence scopes.
+
+| Decision-bearing mechanism | Direct implementation evidence | Consequence for the numerical defense |
+| --- | --- | --- |
+| `exaggeration` supplies one scalar `emotion_adv`, projected by a learned bias-free linear layer and concatenated with reference/speaker conditioning. | [Scalar construction](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/tts.py#L182-L205); [projection and concatenation](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/models/t3/modules/cond_enc.py#L54-L96). | It permits an expressive-conditioning trial; it provides neither eight action channels nor a named-emotion selector. A change in the embedding is not proof of a perceived direction. |
+| With positive CFG, the second branch zeroes text embeddings before positional embeddings; speaker, prompt and expressive condition remain shared. The loop uses `cond + cfg_weight * (cond - uncond)`. | [Input construction](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/models/t3/t3.py#L102-L129); [logit combination](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/models/t3/t3.py#L337-L360). | CFG is text-contrast guidance, not an independent emotion, volume, pitch or duration target. Its pacing effect must be measured with the chosen text/reference. |
+| Repetition processing precedes temperature division, min-p, top-p, softmax and multinomial sampling. | [Actual sampling loop](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/models/t3/t3.py#L319-L360). | Keep these four sampling controls fixed while measuring the two conditioning controls; changing them together would confound this diagnostic comparison. This is an experimental choice, not an assertion that sampling cannot affect delivery. |
+| Public defaults are `.50/.50/.80/1.20/.05/1.00`; the UI uses `.05` increments for exaggeration and CFG. | [Signature](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/src/chatterbox/tts.py#L208-L218); [official UI](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/gradio_tts_app.py#L54-L63). | These identify a reproducible control and a published search resolution, not a production profile for every action or a perceptual difference threshold. |
+
+The [original-model tips](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/README.md#L162-L170)
+recommend `.50/.50` generally, CFG around `.30` for a fast reference, and exaggeration around `.70+`
+with lower CFG for dramatic trials. This supports testing restrained candidates below `.70`; it
+does not prove every smaller setting restrained. The `.70` exceptional-trial boundary is a local
+response to the user's restraint requirement and that documented dramatic starting region, not a
+trained-model discontinuity. An action identifier never bypasses the requirement for a source-
+supported reason and a successful comparison before intensification.
+
+### External research: contribution, conflicts and exclusions
+
+The pinned [original citation entry](https://github.com/resemble-ai/chatterbox/blob/5de7a54aa4e5e2baadb0182dde554908b48b85c2/README.md#L225-L235)
+cites a GitHub repository, not a technical paper. The retrieved [Chatterbox-Flash paper, v3](https://arxiv.org/html/2605.30748v3#S2.SS1)
+identifies that same repository as its base; it changes the decoder to block diffusion. Its
+[CFG sweep, §C.2](https://arxiv.org/html/2605.30748v3) concerns that changed decoder, so its preferred
+scale cannot justify this original engine's action values. Its citation to
+[Ho and Salimans, *Classifier-Free Diffusion Guidance*, §3.2](https://arxiv.org/html/2207.12598v1#S3.SS2)
+explains conditional/unconditional guidance, not theatrical directions or this AR model's optimal
+weight. The citation search is recorded in the maintenance research record; no missing original
+paper or nonexistent action table is fabricated.
+
+| Inspected source | What it contributes; what it cannot establish |
+| --- | --- |
+| [Official demo](https://resemble-ai.github.io/chatterbox_demopage/#exaggeration-control) | Published `.5/1/2` exaggeration examples with fixed dramatic wording. Demonstrates the intended expressive use, without matched seeds, an eight-action score or moderate narration calibration. |
+| [Contributor reply in #30](https://github.com/resemble-ai/chatterbox/issues/30#issuecomment-2917360128) | Original model lacks trained laughter tags; contributor suggests text/reference/exaggeration experiments. This supports checking conditioning interactions, not inserting tags or rewriting Plotinus. The archived reply identifies the contributor and date. |
+| [Issue #61](https://github.com/resemble-ai/chatterbox/issues/61) | Users request emotion-type control; no supplied action-to-number method. The request is not a maintainer guarantee. |
+| [Issue #88](https://github.com/resemble-ai/chatterbox/issues/88) | A user requests rate control and another user reports a limitation. The API/code, not this non-maintainer reply, determines available controls. |
+| [Issue #355](https://github.com/resemble-ai/chatterbox/issues/355) | Reports minimal exaggeration effect specifically in multilingual variants. Not evidence that the original English scalar is ineffective. |
+| [Audiobook project example profiles](https://github.com/psdwizzard/chatterbox-Audiobook/blob/fcdfbf04cb475f26b792a7553fd6cb757fa8cb6a/AUDIOBOOK_FEATURES.md#example-character-voices) | Narrator `.4/.5` and mentor `.3/.3` examples support including those modest regions in a search. Their character labels do not prove our actions or transfer their preferred temperature to Enoch. No controlled comparative evidence is supplied. |
+| [API project configuration](https://github.com/travisvn/chatterbox-tts-api/blob/a5f466128e4baa8e4cceb3bba9b7ca9de6f7ec6b/.env.example#L52-L58) | Its stated CFG/rate direction opposes the original tips. Reject a universal rate claim; retain the conflict as a reason for matched measurement. Its current default selects multilingual, another transfer limitation. |
+| [Server example presets](https://github.com/devnen/Chatterbox-TTS-Server/blob/915ae289340e10c6047f27f47e22eae9bf350c32/ui/presets.yaml) | A scientific-reading preset uses `.3/.5`, whereas other examples are strongly expressive. These are examples without action validation. Some Turbo entries still list unsupported original controls; do not treat the entire file as an engine contract. |
+| [Extended project's quality workflow](https://github.com/petermg/Chatterbox-TTS-Extended/blob/7b43fc08faa42160208a7e3d0c521a453e59125d/README.md#whisper-sync--validation) | Transcription and multiple attempts are operational precedents for checking wording. They cannot certify acting, and automatic trimming or a failed-transcript fallback is not adopted. |
+| [Cross-modal Consistency Guidance, v4](https://arxiv.org/abs/2510.13293v4) | Evaluates modified CosyVoice2 guidance, not these weights or this API. No numerical transfer is justified. |
+| [DUET, Table I](https://arxiv.org/html/2606.00066v1) | Includes Chatterbox in an emotion benchmark, not our rhetorical actions. Without a matching original revision/reference/profile, its aggregate scores do not select these settings. |
+
+The Flash citation trail also leads to [GE2E speaker verification](https://arxiv.org/abs/1710.10467v5),
+[CosyVoice2, §2.4](https://arxiv.org/html/2412.10117v3#S2.SS4),
+[MeanFlow](https://arxiv.org/abs/2505.13447v1), and
+[EXPRESSO](https://www.isca-archive.org/interspeech_2023/nguyen23_interspeech.pdf).
+These concern speaker embeddings, waveform generation or expressive-speech evaluation/data;
+none supplies an original-Chatterbox eight-action numerical mapping. CosyVoice2's published flow-
+model CFG is not the public T3 text-guidance control traced above. No settings are transferred.
+The cited [EmergentTTS-Eval, §4.3](https://arxiv.org/html/2505.23009v1#S4.SS3) reports poor
+Qwen2.5-Omni judging performance; its model comparison does not qualify our local failed critic.
+It strengthens the reason to require a demonstrated capable reviewer rather than generic assurances.
+
+This is a dated, inspectable source search, not a claim to have exhausted every article on the
+internet. Repeated unmeasured advice is not independent confirmation. Search snippets and DeepWiki
+are discovery aids; project claims above are checked against their own pinned files. Commercial
+articles and anecdotes do not override direct code or supply the missing numerical bridge.
+
+### Per-action numerical defense: experiment before adoption
+
+The complete vector order is `exaggeration`, `cfg_weight`, `temperature`, `repetition_penalty`,
+`min_p`, `top_p`. For this experiment only, the last four stay `.80, 1.20, .05, 1.00`, exactly the
+public defaults. Their exact choice makes the comparison reproducible while isolating the two
+conditioning controls; it is not a claim of globally optimal sampling.
+
+The table below records the **selected restrained starting profiles**, initially tested as diagnostic hypotheses. The numerical
+search uses published modest regions `.3–.6` and the ordinary `.5` control. Intermediate `.4` CFG
+samples between the official `.3` pacing trial and `.5` default. `.6` exaggeration samples between
+ordinary `.5` and the documented dramatic `.7` region. These are explicit experimental brackets;
+there is no literature-derived reason that an exact `.1` difference must be perceptible.
+
+| Action | Candidate exaggeration / CFG | Why this contrast is being tested | Current defense boundary |
+| --- | ---: | --- | --- |
+| `CLARIFY` | `.40 / .50` | Test the external narrator-region scalar while preserving default text guidance on §14's bodily-care qualifications. | Must retain distinctions; cannot claim `.4` means clarity. |
+| `PROBE` | `.50 / .40` | Keep ordinary expressive conditioning and test an intermediate pacing adjustment on the opening inquiry. | Must preserve inquiry in context; cannot claim CFG generates questioning. |
+| `CONVINCE` | `.60 / .50` | Test one modest expressive increase with default guidance on the counterargument about animals. | Must make the reason legible without turning it into accusation; increased scalar alone is not persuasion. |
+| `WARN` | `.50 / .30` | Test the upstream deliberation region with ordinary expressive conditioning on an already admitted warning excerpt. | Diagnostic donor is outside this tractate; neither danger nor lower CFG proves alarm or gravity. |
+| `INVITE` | `.40 / .40` | Combine the modest narrator scalar with the intermediate CFG trial for imagining two wise men. | Must offer this comparison intelligibly; no claim of encoded warmth. |
+| `EXALT` | `.60 / .30` | Test modest expressive variation with the upstream pacing-trial region on an admitted image of awakening. | Donor is outside this tractate; no claim that these two controls encode wonder or magnitude. |
+| `URGE` | `.60 / .40` | Test modest expressive variation with an intermediate CFG adjustment on the skilful-athlete counsel. | Must keep the requested conduct clear and avoid the old diagnostic's increased vocal force; no generic urgency detector. |
+| `RESOLVE` | `.40 / .30` | Test modest expressive conditioning and the pacing-trial region on the final lyre conclusion. | Must retain the conclusion's connection to its argument; slower or lower alone is not resolution. |
+
+The shared bridge for each row is: source-supported objective → context-specific realization to
+compare → implemented control that can vary that realization → actual bounded comparison. The
+first two steps establish what the trial seeks; code and published guidance establish why the
+chosen controls/region are worth testing. **Only the resulting evidence can defend selecting the
+exact pair over its alternatives. The evidence below supports a bounded production selection, not a universal semantic decoding claim.**
+Different numbers alone do not establish differentiated acting. The final selection below combines
+source interpretation, bounded acoustic observations and the user’s delegated production judgment.
+
+The frozen book-side experiment is
+`$WORKSPACE_DIR/plotinus-happiness/render/action-calibration/protocol.json`: eight source-bound
+cases, 28 takes, an ordinary control, expressive-only intermediate when distinct, combined candidate,
+and second-seed candidate. It pins source/model/reference identities and keeps donor texts excluded
+from delivery. Native wave hashes, acoustic measurements and source-free transcripts belong beside
+that protocol. A stable feature difference establishes only that measured difference. The failed free-form critics recorded in the book’s workpad supply no perceptual approval. The
+user subsequently delegates the production decision to the agent; the agent must use source and
+actual acoustic/lexical evidence, complete the book, and report the lack of an independently
+qualified perceptual verdict. This does not convert acoustic metrics into semantic proof.
+
+The initial 28 takes now have native-wave feature records and unprompted transcripts. On the
+first matched seed, the measured differences are as follows. Each row binds its wave hashes and
+full vector in the book-side `render/action-calibration/assessment.json`; measurements use native
+24 kHz float WAVs and the energy-masked pYIN configuration recorded beside them. Duration is
+frames/sample rate; RMS and F0 are diagnostics, not inferred emotions.
+
+| Action | Control → candidate duration (s) | Candidate − control RMS (dB) | Candidate − control median voiced F0 (Hz) | Measured limitation |
+| --- | ---: | ---: | ---: | --- |
+| `CLARIFY` | 21.68 → 24.08 | −.52 | −5.72 | No independent perceptual verdict. |
+| `PROBE` | 15.32 → 14.16 | +.02 | +3.50 | Lower CFG did not lengthen this take; no pacing guarantee. |
+| `CONVINCE` | 11.04 → 10.48 | +.63 | +2.25 | No independent perceptual verdict. |
+| `WARN` | 9.80 → 10.48 | −1.19 | −4.64 | No independent perceptual verdict. |
+| `INVITE` | 10.32 → 11.60 | −.59 | −10.36 | Source-free CTC retains the spoken section number; no independent perceptual verdict. |
+| `EXALT` | 13.64 → 13.84 | +.72 | −5.11 | More expressive conditioning did not establish elevated pitch or exaltation. |
+| `URGE` | 18.88 → 22.40 | +.32 | +6.73 | Longer delivery does not establish the requested commitment. |
+| `RESOLVE` | 7.60 → 9.04 | −.06 | +2.63 | Longer delivery does not establish closure. |
+
+These observations establish differences in these particular waves, not the missing rhetorical
+selection judgment. The 224.36-second A/B set is available as the book-side
+`render/action-calibration/audition-review.zip` with source tasks, randomized labels, native audio,
+optional second-seed candidates and recoverable label keys. The external listening request was superseded by the user’s direction that the agent decide and
+complete the mandate; the following selection is the agent’s explicit judgment. An extension adds ordinary controls at
+those second seeds without rewriting the frozen initial protocol or its evidence.
+
+The eight additional ordinary controls at the second seeds are complete: 36 total native takes,
+with transcripts and features. The extension's `replication-assessment.json` preserves both wave
+identities in each pair. At the second seeds, control → candidate durations are CLARIFY
+25.32 → 24.56 s, PROBE 14.52 → 14.00 s, CONVINCE 10.64 → 11.16 s, WARN 11.08 → 10.84 s,
+INVITE 11.16 → 10.88 s, EXALT 13.64 → 14.48 s, URGE 21.16 → 20.88 s, and RESOLVE
+9.52 → 9.80 s. Thus five actions' duration differences reverse sign across seeds. PROBE's median
+F0 difference also reverses. This directly prevents treating these pairs as deterministic pace or
+pitch prescriptions; it does not prove the candidates indistinguishable or artistically unsuitable.
+No rhetorical intention is proved by these two-seed measurements; the agent’s bounded selection
+uses them without claiming a deterministic acoustic dictionary.
+
+### Selection decision and complete numerical defense
+
+The user’s latest instruction assigns the decision to the agent and requires completion. Adopt the
+eight pairs above in the one runtime registry, with `.80/1.20/.05/1.00` sampling held at the traced
+public defaults. The following reasons select each exact tested pair over the ordinary control;
+they do not claim that an acting textbook supplies numbers. All acting premises remain the one
+book’s objective/context/adjustment distinction already cited. Every selected pair has unchanged-
+text trials at two seeds, exact wave hashes, complete source-free transcripts and native features.
+
+| Selected action / pair | Decision from the actual comparisons and local task | Why this choice rather than the alternatives |
+| --- | --- | --- |
+| `CLARIFY .40/.50` | Both seeds reduce median voiced F0 by about 4–6 Hz while retaining voiced variation and the full bodily-care qualifications. Native RMS changes only −.52/+ .14 dB. | The `.40` narrator region has a published example and actual source-complete trials; keep default CFG rather than introduce an unneeded guidance change. Duration reverses between seeds, so no slow-reading claim is made. |
+| `PROBE .50/.40` | The two questions remain complete; both trials are modestly shorter (1.16/.52 s) than their controls. This is compatible with carrying inquiry forward, rather than prescribing a solemn question. | Retain ordinary expressive conditioning; `.40` tests the intermediate guidance region without the old `.78` scalar. Pitch changes sign across seeds and is not the justification for questioning. |
+| `CONVINCE .60/.50` | The counterargument retains its words with modest RMS increases of .63/.99 dB and median-F0 increases of 2.25/7.95 Hz. Select this bounded contrast for insisting on the reason. | `.60` is the tested intermediate below the documented `.70` dramatic region; default CFG avoids compounding both controls. The former `.84/.30` is unnecessary for the user’s scale. These differences support modest activation, not proof of persuasion. |
+| `WARN .50/.30` | The admitted warning retains its words, with native RMS lower by 1.19/.73 dB and median F0 lower at both seeds. Select that bounded treatment for consequence without alarm. | Keep ordinary expressive conditioning and trial the upstream `.30` pacing region; do not use the former `.90` scalar. Duration reverses, so gravity is an objective/context judgment, not a slowness equation. This action is not used in I.4. |
+| `INVITE .40/.40` | The imagined comparison retains Fifteen and the complete two-men contrast, independently checked where ASR failed. Native RMS decreases .59/1.11 dB and median F0 decreases at both seeds. | Keep the tested modest narrator scalar and intermediate guidance; their combined observed reduction in force fits offering this comparison. Neither breathiness nor warmth is claimed. The `.40/.50` intermediate also worked lexically but showed less change at the first seed; the source’s change of task supports selecting the combined trial. |
+| `EXALT .60/.30` | The admitted awakening image remains complete; native RMS increases only .72/.41 dB and duration increases at both seeds. Select a measured expansion within the requested scale. | The tested `.60` scalar provides modest activation; the `.30` guidance trial supplies an alternative to the quicker expressive-only first take. Median F0 is lower, so no elevated-pitch story is asserted. The old `1.00/.26` is unnecessary. This action is not used in I.4. |
+| `URGE .60/.40` | The skilful-athlete counsel remains complete. Median F0 rises 6.73/2.77 Hz with native RMS increases of only .32/.06 dB. Choose this limited contrast for commitment to the requested conduct. | The tested modest scalar/intermediate CFG pair avoids the former `.94/.28` treatment; duration reverses and does not define urgency. The expressive-only intermediate and combined first take have equal duration; the choice is a contextual production judgment, not an assertion that CFG uniquely encodes urging. |
+| `RESOLVE .40/.30` | The complete final lyre qualification is retained. Both trials lengthen the conclusion (.28–1.44 s) while RMS remains within .06 dB of control. Choose that space for settling the argument. | The tested modest narrator scalar plus upstream pacing-trial region distinguishes the conclusion without the old `.72` scalar. Median F0 increases, so a supposed encoded final pitch fall is not the defense. |
+
+The final-book URGE pilot also permits a same-text/voice/model/seed comparison to the retained
+former `.94/.28` diagnostic: the selected `.60/.40` take has native RMS −23.98 rather than
+−21.20 dBFS, median voiced F0 101.75 rather than 120.65 Hz, and duration 19.88 rather than
+21.64 s. Its complete counsel transcribes correctly. This directly supports relative acoustic
+restraint in this matched case; it does not establish a universal emotion mapping. The book-side
+`render/review/final-urge-comparison.json` binds both wave hashes and the exact vectors.
+
+These decisions defend a restrained starting registry for this implementation and Enoch’s observed
+behavior. They are not claimed optimal, statistically general across voices, or perceptually
+certified by a failed model. Future books audition their actual source, retain their objectives,
+and may revise numbers through exact-text calibration when evidence supports it. Values at or above
+`.70` remain exceptional trials under the user’s restraint instruction and the upstream dramatic
+region; no action defaults there. The present I.4 production uses only its six source-supported
+actions, checks the longest sentences and sampled transitions, and exports after source/acoustic,
+assembly and encoded-delivery checks with the actual perceptual limitations stated.
+
+For every accepted replacement, record all six values, action/move IDs, exact evidence identities,
+comparison result, scope and remaining uncertainty. Preserve the proposed vector and realized vector
+through the renderer's exact-text calibration contract. A representative test of one action cannot
+approve another. Material reports to the user state the action, source cue, task, complete grammar
+once and any changed values, expected contrast, and what was actually observed. They explain the
+production decision; they do not publish private deliberation or read score metadata aloud.
+
+### Source-word diagnostics and rejected control changes
+
+In the completed I.4 trials, the source `possessed that` remains supplied exactly, but automatic
+words/phones do not resolve its final stop. A reviewed seed retry and matched CFG `.55/.60` trials
+fail to clarify it; `.55` also changes two source `would` forms in transcription. Reject those CFG
+candidates and retain the selected CONVINCE `.60/.50` vector. Higher text-guidance contrast is an
+implemented mechanism, not a guarantee of clearer morphology. The book-side
+`render/review/deliberate-repair-review.json` records actual wave identities and the final judgment.
+
+The earlier diagnosis of a proven word substitution was too strong. Word-final stop reduction,
+including regular past-tense clusters, is documented in primary phonetic research.[^stop-reduction]
+Inference: the absence of `/t/` in an automatic phone sequence cannot alone distinguish a lexical
+change from connected-speech reduction here. Retain the exact text and document that ambiguity;
+do not claim the stop was proved audible or fixed. This is a technical limit on speech evidence,
+not a second acting theory or proof that the actual token realizes the intended past tense.
+
+[^stop-reduction]: Baranowski and Turton, *Language Variation and Change*32(1),2020,pp.1–23, study word-final coronal-stop reduction including past-tense forms; see the [primary article](https://doi.org/10.1017/S0954394520000034). Oxford’s [Word Joins project](https://www.phon.ox.ac.uk/wordjoins) studies final-consonant changes in naturally occurring speech. Neither source certifies this TTS token.
 
 ## Rendering and quality obligations
 

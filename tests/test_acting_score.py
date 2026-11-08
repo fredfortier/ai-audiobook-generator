@@ -93,6 +93,11 @@ def acting_score_fixture() -> tuple[Unit, Brief, list[DirectorMove]]:
 
 
 class ActingScoreTest(unittest.TestCase):
+    def test_starting_profiles_preserve_contrast_without_dramatic_defaults(self) -> None:
+        pairs = {(p.exaggeration, p.cfg_weight) for p in ACTION_PARAMETERS.values()}
+        self.assertEqual(len(pairs), 8)
+        self.assertLess(max(p.exaggeration for p in ACTION_PARAMETERS.values()), 0.70)
+
     def test_removed_letter_calls_do_not_reject_authored_letters(self) -> None:
         for source, call, normalized in [
             ("Trutha is a good beginning.", "a", "Truth is a good beginning."),
@@ -265,7 +270,11 @@ class ActingScoreTest(unittest.TestCase):
             update={
                 "beats": [
                     disposition.beats[0].model_copy(
-                        update={"parameters": ACTION_PARAMETERS["PROBE"]}
+                        update={
+                            "parameters": ACTION_PARAMETERS["CLARIFY"].model_copy(
+                                update={"exaggeration": 0.9}
+                            )
+                        }
                     ),
                     *disposition.beats[1:],
                 ]
@@ -273,6 +282,20 @@ class ActingScoreTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "registered action vector"):
             check_disposition(wrong_vector, unit, brief, moves)
+
+        # An action change must be rejected independently of numeric vector validation.
+        wrong_action = disposition.model_copy(
+            update={
+                "beats": [
+                    disposition.beats[0].model_copy(
+                        update={"action": "WARN", "parameters": ACTION_PARAMETERS["WARN"]}
+                    ),
+                    *disposition.beats[1:],
+                ]
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "action"):
+            check_disposition(wrong_action, unit, brief, moves)
 
         omitted = disposition.model_copy(
             update={

@@ -53,71 +53,27 @@ ACTION_MEANINGS: dict[Action, str] = {
     "RESOLVE": "land and retain a concluding distinction or settled alternative",
 }
 
+# Restrained starting candidates; rationale and audition limits: skills/adapt-text/SPEC.md.
+_ACTION_CONDITIONING: dict[Action, tuple[float, float]] = {
+    "CLARIFY": (0.40, 0.50),
+    "PROBE": (0.50, 0.40),
+    "CONVINCE": (0.60, 0.50),
+    "WARN": (0.50, 0.30),
+    "INVITE": (0.40, 0.40),
+    "EXALT": (0.60, 0.30),
+    "URGE": (0.60, 0.40),
+    "RESOLVE": (0.40, 0.30),
+}
 ACTION_PARAMETERS: dict[Action, Parameters] = {
-    "CLARIFY": Parameters(
-        exaggeration=0.55,
-        cfg_weight=0.40,
+    action: Parameters(
+        exaggeration=exaggeration,
+        cfg_weight=cfg_weight,
         temperature=0.80,
         repetition_penalty=1.20,
         min_p=0.05,
         top_p=1.00,
-    ),
-    "PROBE": Parameters(
-        exaggeration=0.78,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "CONVINCE": Parameters(
-        exaggeration=0.84,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "WARN": Parameters(
-        exaggeration=0.90,
-        cfg_weight=0.28,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "INVITE": Parameters(
-        exaggeration=0.76,
-        cfg_weight=0.30,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "EXALT": Parameters(
-        exaggeration=1.00,
-        cfg_weight=0.26,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "URGE": Parameters(
-        exaggeration=0.94,
-        cfg_weight=0.28,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
-    "RESOLVE": Parameters(
-        exaggeration=0.72,
-        cfg_weight=0.34,
-        temperature=0.80,
-        repetition_penalty=1.20,
-        min_p=0.05,
-        top_p=1.00,
-    ),
+    )
+    for action, (exaggeration, cfg_weight) in _ACTION_CONDITIONING.items()
 }
 
 

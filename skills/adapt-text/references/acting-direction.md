@@ -3,6 +3,10 @@
 Use this reference when creating or semantically reviewing an acting score. Score language is
 metadata and never enters spoken text.
 
+The [acting specification](../SPEC.md#acting-direction-and-control-provenance) owns this revision’s
+single textbook basis and the explicit transfer from theatrical objectives to narration. The eight
+actions below are local operational definitions, not a textbook taxonomy or native model grammar.
+
 ## Complete-work direction
 
 Read the complete assigned short work or coherent section packet before setting boundaries. Derive
@@ -24,21 +28,32 @@ action:
 | `RESOLVE` | Land and retain a concluding distinction or settled alternative. |
 
 Question marks, elevated vocabulary, imperatives, and paragraph endings are evidence rather than
-automatic classifications. `CLARIFY` is the fallback when the span establishes no stronger listener
-task. A broad cue may strengthen a supported action but never supplies one by itself.
+automatic classifications. `CLARIFY` is the fallback when the span establishes no other listener
+task. These actions are not an intensity ladder. A broad cue may qualify a supported action but
+never supplies one by itself. A rhetorical question that advances a stated argument may be
+`CONVINCE`; reporting a threat as an example may remain `CLARIFY`. Neither requires alarm.
 
 ## Intensity and vocal restraint
 
-Preserve emotional intensity, rhetorical contrast and commitment to the listener. Keep the delivery
-at the scale of reading and acting a letter to someone: conviction, intimacy and urgency can remain
-strong without a raised voice. Build escalation from the passage and its preceding trajectory;
-do not reach immediately for an aggressive, loud or high-pitched register when an argument sharpens.
+Default to deliberate, educated address to one attentive listener. Keep ideas active and contrasts
+legible; let the listener follow each qualification and inference. Select the words carrying the
+contrast rather than stressing every important-looking word. Preserve natural movement and warmth;
+deliberate does not mean uniformly slow, solemn, detached or flat. Direct the action that produces
+understanding rather than displaying an emotion as an end in itself. Build any escalation from the
+passage and its preceding trajectory.
 
 `WARN`, `URGE` and `EXALT` describe listener tasks, not instructions to shout. Warnings can be grave,
-exhortations insistent and visions radiant within a controlled speaking register. Reserve a loud,
-near-hysterical extreme for rare, textually earned climaxes of exceptional magnitude, such as the
-angel binding Yaldabaoth and casting him into Tartaros. Religious vocabulary, condemnation,
-exclamation marks or cosmic subject matter alone do not earn that extreme.
+exhortations firm and visions spacious within a controlled speaking register. Catastrophe, sacred
+subject matter or an imperative does not by itself authorize heightened vocal force. Reserve an
+exceptional dramatic trial for an explicit production request or a climax whose source and build
+support it, subject to the audition requirements in [performance.md](performance.md).
+
+Interpret conventional directions in context: “deliberate” asks for clear thought and unhurried
+transitions; “grave” for the weight of a consequence; “urgent” for a compelling listener task;
+“intimate” for a specific addressee; “with wonder” for discovery. None is automatically slow,
+low-pitched, loud, whispered or `EXALT`. Express the supported listener task with the existing eight
+actions, and put speaking-scale limits in the brief. A direction to persuade need not sound angry;
+an inward invitation need not become breathy. These are acting intentions, not extra model syntax.
 
 Freeze this restraint in the brief's performance limits and review the build into each climax.
 Keep the source-supported action; do not relabel an intense passage as `CLARIFY` merely to reduce
@@ -73,3 +88,7 @@ of a long work against its words and neighbors, expanding review after any faile
 Challenge unsupported boundaries, cue leakage, action labels chosen from punctuation alone, and
 uniform force. Freeze a coherent, source-faithful, role-correct score once it satisfies its objective;
 do not reopen defensible local choices for marginal relabeling.
+
+Give the main agent concise notes on material turns and restraint choices. The main agent reports
+those choices to the user under [performance.md](performance.md#make-material-direction-visible),
+then verifies their realization in audio; source-exact metadata alone cannot establish delivery.
