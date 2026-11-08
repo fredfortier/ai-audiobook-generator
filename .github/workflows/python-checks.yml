@@ -33,5 +33,14 @@ jobs:
           enable-cache: true
       - name: Install locked dependencies
         run: uv sync --locked
+      # Adapted from microsoft/markitdown@ed178952a6672abdfd35b5f9e76a80b6cefc086e
+      # .github/workflows/tests.yml:36–43; only Tests needs the external media tools.
+      - name: Install media tools
+        if: matrix.check == 'Tests'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
       - name: Run ${{ matrix.check }}
         run: uv run --no-sync ${{ matrix.command }}
